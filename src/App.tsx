@@ -1,24 +1,36 @@
 import React from 'react';
-import logo from './logo.svg';
 import './App.css';
+import Box from '@mui/material/Box'
+import { styled, createTheme, ThemeProvider } from '@mui/system';
+import { BrowserRouter as Router, Route, Navigate, Routes } from "react-router-dom";
+import CompilerPage from './pages/CompilerPage';
+
+const RootBox = styled(Box)(({ theme }) => ({
+  // [theme.breakpoints.up('sm')]: {
+  //   marginTop: 50
+  // },
+  // [theme.breakpoints.down('sm')]: {
+  //   marginTop: 20
+  // },
+  width: '100%',
+  height: '100vh'
+}));
+
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div className="App-root">
+      <Router>
+        <RootBox display="flex">
+          <Routes>
+            <Route path="/compile" element={<CompilerPage />} />
+            <Route
+                path="*"
+                element={<Navigate to="/compile" />}
+            />
+          </Routes>
+        </RootBox>
+      </Router>
     </div>
   );
 }

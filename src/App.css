@@ -36,3 +36,17 @@
     transform: rotate(360deg);
   }
 }
+
+
+::-webkit-scrollbar {width: 7px; height: 7px;}
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  box-shadow: rgba(255,255,255,0.3) 0 0 0 1px;
+}
+::-webkit-scrollbar-thumb:hover {background: rgba(0,0,0,0.3)}
+
+
+@media screen and (max-width: 480px) {
+  ::-webkit-scrollbar {width: 5px;}
+}
