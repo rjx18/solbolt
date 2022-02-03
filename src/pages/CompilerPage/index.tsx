@@ -9,12 +9,18 @@ import 'codemirror/keymap/sublime';
 import { styled, createTheme, ThemeProvider } from '@mui/system';
 import 'codemirror/theme/neo.css';
 import axios from 'axios';
+import { EVMMap, getRandomInt, parseEVMMappings } from '../../utils';
+import './Compiler.css';
+
+import Editor from "@monaco-editor/react";
 
 const CenteredBox = styled(Box)(({ theme }) => ({
   margin: "auto",
   display: "flex",
   alignItems: "center",
 }));
+
+const NUM_LINE_CLASSES = 18
 
 const defaultValue = `// SPDX-License-Identifier: GPL-3.0
 pragma solidity >=0.7.0 <0.9.0;
@@ -32,22 +38,54 @@ contract TestLoop {
 }
   `
 
+const COLOR_CLASSES = [
+    "background-color:hsla(300, 70%, 90%, 1);",
+    "background-color:hsla(0, 70%, 90%, 1);",
+    "background-color:hsla(80, 70%, 90%, 1);",
+    "background-color:hsla(160, 70%, 90%, 1);",
+    "background-color:hsla(240, 70%, 90%, 1);",
+    "background-color:hsla(320, 70%, 90%, 1);",
+    "background-color:hsla(40, 70%, 90%, 1);",
+    "background-color:hsla(120, 70%, 90%, 1);",
+    "background-color:hsla(200, 70%, 90%, 1);",
+    "background-color:hsla(280, 70%, 90%, 1);",
+    "background-color:hsla(20, 70%, 90%, 1);",
+    "background-color:hsla(100, 70%, 90%, 1);",
+    "background-color:hsla(180, 70%, 90%, 1);",
+    "background-color:hsla(260, 70%, 90%, 1);",
+    "background-color:hsla(340, 70%, 90%, 1);",
+    "background-color:hsla(60, 70%, 90%, 1);",
+    "background-color:hsla(140, 70%, 90%, 1);",
+    "background-color:hsla(220, 70%, 90%, 1);"
+]
+
 function CompilerPage() {
 
-  const [compiledEVM, setCompiledEVM] = useState('')
+  // const [compiledEVM, setCompiledEVM] = useState('')
+  const [filteredEVM, setFilteredEVM] = useState('')
+  const [mappings, setMappings] = useState(undefined as undefined | EVMMap)
+
+  // const [markers, setMarkers] = useState([] as any[])
+
   const [error, setError] = useState('')
 
-  const cmRef = useRef<any>();
+  const cmSourceRef = useRef<any>();
+  const cmCompiledRef = useRef<any>();
 
   const handleClick = () => {
-    if (cmRef.current && cmRef.current.editor) {
+    if (cmSourceRef.current && cmSourceRef.current.editor) {
       axios.post('http://127.0.0.1:5000/compile/', {
-        content: cmRef.current.editor.getValue(),
+        content: cmSourceRef.current.editor.getValue(),
       }).then((r) => {
         if (r.status === 200) {
           const contractFile = Object.keys(r.data.result.contracts)[0]
           const contractSol = Object.keys(r.data.result.contracts[contractFile])[0]
-          setCompiledEVM(r.data.result.contracts[contractFile][contractSol].evm.assembly)
+          const compiledEVM = r.data.result.contracts[contractFile][contractSol].evm.assembly
+
+          const {mappings, filteredLines} = parseEVMMappings(cmSourceRef.current.editor.getValue(), compiledEVM)
+          
+          setFilteredEVM(filteredLines)
+          setMappings(mappings)
         }
       }).catch((r) => {
         const errorMessage = r.response.data.status.split("\n")[0]
@@ -60,20 +98,57 @@ function CompilerPage() {
     setError('')
   }
 
+  function handleSourceEditorDidMount(editor: any, monaco: any) {
+    cmSourceRef.current = editor; 
+  }
+
   useEffect(() => {
-    console.log('useRef changed')
-    console.log(cmRef.current)
-    if (cmRef.current && cmRef.current.editor) {
-      cmRef.current.editor.markText(
-        { line: 0, ch: 0 },
-        { line: 2, ch: 5 },
-        {
-          css: "background-color:lightgrey",
-          className: "styled-background"
+    if (cmSourceRef.current && cmSourceRef.current.editor && cmCompiledRef.current && cmCompiledRef.current.editor && mappings) {
+
+      cmSourceRef.current.editor.doc.getAllMarks().forEach((marker: any) => marker.clear());
+      var sourceLines = cmSourceRef.current.editor.lineCount();
+      for (let i = 0; i < sourceLines; i++) {
+        cmSourceRef.current.editor.removeLineClass(i, "wrap");
+      }
+      cmCompiledRef.current.editor.doc.getAllMarks().forEach((marker: any) => marker.clear());
+      var compiledLines = cmSourceRef.current.editor.lineCount();
+      for (let i = 0; i < compiledLines; i++) {
+        cmCompiledRef.current.editor.removeLineClass(i, "wrap");
+      }
+
+      const mappingKeysSorted = Object.keys(mappings).map((k) => {return {key: k, length: mappings[k].length}})
+
+      mappingKeysSorted.sort((firstEl, secondEl) => { return secondEl.length - firstEl.length }) // sort by length descending, so we can mark the largest regions first
+
+      let currClassCount = 0
+
+      for (const mappingKey of mappingKeysSorted) {
+        const mappingItem = mappings[mappingKey.key]
+
+        if (mappingItem.isLine) {
+          for (let i = mappingItem.startLine; i <= mappingItem.endLine; i++) {
+            cmSourceRef.current.editor.addLineClass(i, "wrap", `frag-color-${currClassCount % NUM_LINE_CLASSES}`);
+          }
+          
+        } else {
+          // console.log(mappingItem.startLine)
+          // console.log(mappingItem.startChar!)
+          cmSourceRef.current.editor.markText(
+            { line: mappingItem.startLine, ch: mappingItem.startChar! },
+            { line: mappingItem.endLine, ch: mappingItem.endChar! },
+            {
+              css: COLOR_CLASSES[currClassCount % NUM_LINE_CLASSES],
+            }
+          );
         }
-      );
+        for (const compiledLine of mappingItem.sourceLines) {
+          cmCompiledRef.current.editor.addLineClass(compiledLine, "wrap", `frag-color-${currClassCount % NUM_LINE_CLASSES}`);
+        }          
+
+        currClassCount++;
+      }
     }
-  }, [cmRef.current]);
+  }, [cmSourceRef.current, cmCompiledRef.current, mappings]);
 
   return <>
     <Snackbar open={error != undefined && error !== ''} autoHideDuration={10000} onClose={handleErrorClose}>
@@ -85,20 +160,20 @@ function CompilerPage() {
     </Snackbar>
     <CenteredBox>
       <Box width="700px">
-        <CodeMirror
-          ref={cmRef}
-          value={defaultValue}
+        <Editor
+          defaultLanguage="sol"
+          defaultValue={defaultValue}
           height="80vh"
-          placeholder='Please enter your Solidity code here'
-          options={{
-            theme: "neo",
-            matchBrackets: true,
-            indentUnit: 2,
-            lineNumbers: true,
-            tabSize: 4,
-            indentWithTabs: false,
-            mode: "cpp"
-          }}
+          onMount={handleSourceEditorDidMount}
+          // options={{
+          //   theme: "neo",
+          //   matchBrackets: true,
+          //   indentUnit: 2,
+          //   lineNumbers: true,
+          //   tabSize: 4,
+          //   indentWithTabs: false,
+          //   mode: "cpp"
+          // }}
           // onChange={(instance) => {
           //   setSolidityText(instance.getValue())
           // }}
@@ -112,7 +187,8 @@ function CompilerPage() {
       </Box>
       <Box width="700px">
         <CodeMirror
-          value={compiledEVM}
+          ref={cmCompiledRef}
+          value={filteredEVM}
           height="80vh"
           placeholder='Compiled EVM will be shown here.'
           options={{
