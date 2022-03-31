@@ -9,10 +9,11 @@ import 'codemirror/keymap/sublime';
 import { styled, createTheme, ThemeProvider } from '@mui/system';
 import 'codemirror/theme/neo.css';
 import axios from 'axios';
-import { EVMMap, getRandomInt, parseEVMMappings } from '../../utils';
+import { addGasMetrics, EVMMap, getRandomInt, parseEVMMappings, parseLegacyEVMMappings } from '../../utils';
 import './Compiler.css';
 
 import Editor from "@monaco-editor/react";
+import Pane from '../../components/Pane';
 
 const CenteredBox = styled(Box)(({ theme }) => ({
   margin: "auto",
@@ -38,54 +39,68 @@ contract TestLoop {
 }
   `
 
-const COLOR_CLASSES = [
-    "background-color:hsla(300, 70%, 90%, 1);",
-    "background-color:hsla(0, 70%, 90%, 1);",
-    "background-color:hsla(80, 70%, 90%, 1);",
-    "background-color:hsla(160, 70%, 90%, 1);",
-    "background-color:hsla(240, 70%, 90%, 1);",
-    "background-color:hsla(320, 70%, 90%, 1);",
-    "background-color:hsla(40, 70%, 90%, 1);",
-    "background-color:hsla(120, 70%, 90%, 1);",
-    "background-color:hsla(200, 70%, 90%, 1);",
-    "background-color:hsla(280, 70%, 90%, 1);",
-    "background-color:hsla(20, 70%, 90%, 1);",
-    "background-color:hsla(100, 70%, 90%, 1);",
-    "background-color:hsla(180, 70%, 90%, 1);",
-    "background-color:hsla(260, 70%, 90%, 1);",
-    "background-color:hsla(340, 70%, 90%, 1);",
-    "background-color:hsla(60, 70%, 90%, 1);",
-    "background-color:hsla(140, 70%, 90%, 1);",
-    "background-color:hsla(220, 70%, 90%, 1);"
-]
-
 function CompilerPage() {
 
   // const [compiledEVM, setCompiledEVM] = useState('')
   const [filteredEVM, setFilteredEVM] = useState('')
+  const [compiledJson, setCompiledJson] = useState(undefined as any)
   const [mappings, setMappings] = useState(undefined as undefined | EVMMap)
+  const [highlightedClass, setHighlightedClass] = useState(undefined as any)
+
+  const [isCompiled, setIsCompiled] = useState(true)
 
   // const [markers, setMarkers] = useState([] as any[])
 
   const [error, setError] = useState('')
 
-  const cmSourceRef = useRef<any>();
-  const cmCompiledRef = useRef<any>();
+  const sourceChildRef = useRef<any>();
+  const compiledChildRef = useRef<any>();
 
   const handleClick = () => {
-    if (cmSourceRef.current && cmSourceRef.current.editor) {
+    if (sourceChildRef.current && compiledChildRef.current) {
+      const sourceValue = sourceChildRef.current.getValue()
+
       axios.post('http://127.0.0.1:5000/compile/', {
-        content: cmSourceRef.current.editor.getValue(),
+        content: sourceValue,
       }).then((r) => {
         if (r.status === 200) {
-          const contractFile = Object.keys(r.data.result.contracts)[0]
-          const contractSol = Object.keys(r.data.result.contracts[contractFile])[0]
-          const compiledEVM = r.data.result.contracts[contractFile][contractSol].evm.assembly
-
-          const {mappings, filteredLines} = parseEVMMappings(cmSourceRef.current.editor.getValue(), compiledEVM)
+          setCompiledJson(r.data.result)
+          const {mappings, filteredLines} = parseLegacyEVMMappings(sourceValue, r.data.result)
           
+          setHighlightedClass(undefined)
           setFilteredEVM(filteredLines)
           setMappings(mappings)
+        }
+      }).catch((r) => {
+        console.log(r)
+        const errorMessage = r.response.data.status.split("\n")[0]
+        setError(errorMessage)
+      })
+    }
+  }
+
+  const handleSymExec = () => {
+    if (isCompiled && sourceChildRef.current && compiledChildRef.current) {
+      const sourceValue = sourceChildRef.current.getValue()
+
+      axios.post('http://127.0.0.1:5000/sym/', {
+        content: sourceValue,
+        json: JSON.stringify(compiledJson)
+      }).then((r) => {
+        if (r.status === 200) {
+          console.log(r.data)
+
+          if (mappings) {
+            const newMappings = {...mappings}
+
+            addGasMetrics(newMappings, r.data)
+
+            console.log('new mappings')
+
+            console.log(newMappings)
+
+            setMappings(newMappings)
+          }
         }
       }).catch((r) => {
         const errorMessage = r.response.data.status.split("\n")[0]
@@ -98,57 +113,19 @@ function CompilerPage() {
     setError('')
   }
 
-  function handleSourceEditorDidMount(editor: any, monaco: any) {
-    cmSourceRef.current = editor; 
+  const handleSourceMouseMove = (key: string) => {
+    setHighlightedClass({
+      class: key,
+      triggeredFrom: "source"
+    })
   }
 
-  useEffect(() => {
-    if (cmSourceRef.current && cmSourceRef.current.editor && cmCompiledRef.current && cmCompiledRef.current.editor && mappings) {
-
-      cmSourceRef.current.editor.doc.getAllMarks().forEach((marker: any) => marker.clear());
-      var sourceLines = cmSourceRef.current.editor.lineCount();
-      for (let i = 0; i < sourceLines; i++) {
-        cmSourceRef.current.editor.removeLineClass(i, "wrap");
-      }
-      cmCompiledRef.current.editor.doc.getAllMarks().forEach((marker: any) => marker.clear());
-      var compiledLines = cmSourceRef.current.editor.lineCount();
-      for (let i = 0; i < compiledLines; i++) {
-        cmCompiledRef.current.editor.removeLineClass(i, "wrap");
-      }
-
-      const mappingKeysSorted = Object.keys(mappings).map((k) => {return {key: k, length: mappings[k].length}})
-
-      mappingKeysSorted.sort((firstEl, secondEl) => { return secondEl.length - firstEl.length }) // sort by length descending, so we can mark the largest regions first
-
-      let currClassCount = 0
-
-      for (const mappingKey of mappingKeysSorted) {
-        const mappingItem = mappings[mappingKey.key]
-
-        if (mappingItem.isLine) {
-          for (let i = mappingItem.startLine; i <= mappingItem.endLine; i++) {
-            cmSourceRef.current.editor.addLineClass(i, "wrap", `frag-color-${currClassCount % NUM_LINE_CLASSES}`);
-          }
-          
-        } else {
-          // console.log(mappingItem.startLine)
-          // console.log(mappingItem.startChar!)
-          cmSourceRef.current.editor.markText(
-            { line: mappingItem.startLine, ch: mappingItem.startChar! },
-            { line: mappingItem.endLine, ch: mappingItem.endChar! },
-            {
-              css: COLOR_CLASSES[currClassCount % NUM_LINE_CLASSES],
-            }
-          );
-        }
-        for (const compiledLine of mappingItem.sourceLines) {
-          cmCompiledRef.current.editor.addLineClass(compiledLine, "wrap", `frag-color-${currClassCount % NUM_LINE_CLASSES}`);
-        }          
-
-        currClassCount++;
-      }
-    }
-  }, [cmSourceRef.current, cmCompiledRef.current, mappings]);
+  const handleCompiledMouseMove = (key: string) => {
+    setHighlightedClass({
+      class: key,
+      triggeredFrom: "compile"
+    })
+  }
 
   return <>
     <Snackbar open={error != undefined && error !== ''} autoHideDuration={10000} onClose={handleErrorClose}>
@@ -160,47 +137,43 @@ function CompilerPage() {
     </Snackbar>
     <CenteredBox>
       <Box width="700px">
-        <Editor
-          defaultLanguage="sol"
-          defaultValue={defaultValue}
+        <Pane
+          ref={sourceChildRef}
+          language="sol"
+          content={defaultValue}
           height="80vh"
-          onMount={handleSourceEditorDidMount}
-          // options={{
-          //   theme: "neo",
-          //   matchBrackets: true,
-          //   indentUnit: 2,
-          //   lineNumbers: true,
-          //   tabSize: 4,
-          //   indentWithTabs: false,
-          //   mode: "cpp"
-          // }}
-          // onChange={(instance) => {
-          //   setSolidityText(instance.getValue())
-          // }}
-          
+          handleMouseHover={handleSourceMouseMove}
+          readOnly={false}
+          isCompiled={false}
+          mappings={mappings}
+          highlightedClass={highlightedClass}
         />
       </Box>
       <Box p={3}>
-        <Button variant="outlined" onClick={handleClick}>
-          Compile
-        </Button>
+        <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center">
+          <Box>
+            <Button variant="outlined" onClick={handleClick}>
+              Compile
+            </Button>
+          </Box>
+          <Box pt={2}>
+            <Button variant="outlined" onClick={handleSymExec}>
+              Symexec
+            </Button>
+          </Box>
+        </Box>
       </Box>
       <Box width="700px">
-        <CodeMirror
-          ref={cmCompiledRef}
-          value={filteredEVM}
+      <Pane
+          ref={compiledChildRef}
+          language="plaintext"
+          content={filteredEVM}
           height="80vh"
-          placeholder='Compiled EVM will be shown here.'
-          options={{
-            theme: "neo",
-            matchBrackets: true,
-            indentUnit: 2,
-            lineNumbers: true,
-            tabSize: 4,
-            indentWithTabs: true,
-            mode: "text/x-solidity",
-            readOnly: true
-          }}
+          handleMouseHover={handleCompiledMouseMove}
+          readOnly={true}
+          isCompiled={true}
+          mappings={mappings}
+          highlightedClass={highlightedClass}
         />
       </Box>
     </CenteredBox>

@@ -1,71 +1,108 @@
 .frag-color-0 {
-  background-color:hsla(300, 70%, 90%, 1);
+  background: rgba(141, 211, 199, 0.35);
 }
 
 .frag-color-1 {
-  background-color:hsla(0, 70%, 90%, 1);
+  background: rgba(255, 255, 179, 0.35);
 }
 
 .frag-color-2 {
-  background-color:hsla(80, 70%, 90%, 1);
+  background: rgba(190, 186, 218, 0.35);
 }
 
 .frag-color-3 {
-  background-color:hsla(160, 70%, 90%, 1);
+  background: rgba(251, 128, 114, 0.35);
 }
 
 .frag-color-4 {
-  background-color:hsla(240, 70%, 90%, 1);
+  background: rgba(128, 177, 211, 0.35);
 }
 
 .frag-color-5 {
-  background-color:hsla(320, 70%, 90%, 1);
+  background: rgba(253, 180, 98, 0.35);
 }
 
 .frag-color-6 {
-  background-color:hsla(40, 70%, 90%, 1);
+  background: rgba(179, 222, 105, 0.35);
 }
 
 .frag-color-7 {
-  background-color:hsla(120, 70%, 90%, 1);
+  background: rgba(252, 205, 229, 0.35);
 }
 
 .frag-color-8 {
-  background-color:hsla(200, 70%, 90%, 1);
+  background: rgba(217, 217, 217, 0.35);
 }
 
 .frag-color-9 {
-  background-color:hsla(280, 70%, 90%, 1);
+  background: rgba(188, 128, 189, 0.35);
 }
 
 .frag-color-10 {
-  background-color:hsla(20, 70%, 90%, 1);
+  background: rgba(204, 234, 197, 0.35);
 }
 
 .frag-color-11 {
-  background-color:hsla(100, 70%, 90%, 1);
+  background: rgba(255, 237, 111, 0.35);
 }
 
-.frag-color-12 {
-  background-color:hsla(180, 70%, 90%, 1);
+
+/* 0 - 5 */
+.frag-heatmap-0 {
+  background: rgba(231, 236, 215, 0.35);
 }
 
-.frag-color-13 {
-  background-color:hsla(260, 70%, 90%, 1);
+/* 10 - 50 */
+.frag-heatmap-1 {
+  background: rgba(229, 230, 188, 0.35);
 }
 
-.frag-color-14 {
-  background-color:hsla(340, 70%, 90%, 1);
+/* 50 - 100 */
+.frag-heatmap-2 {
+  background: rgba(228, 216, 158, 0.35);
 }
 
-.frag-color-15 {
-  background-color:hsla(60, 70%, 90%, 1);
+/* 100 - 200 */
+.frag-heatmap-3 {
+  background: rgba(230, 189, 124, 0.35);
 }
 
-.frag-color-16 {
-  background-color:hsla(140, 70%, 90%, 1);
+/* 200 - 500 */
+.frag-heatmap-4 {
+  background: rgba(235, 147, 86, 0.35);
 }
 
-.frag-color-17 {
-  background-color:hsla(220, 70%, 90%, 1);
+/* 500 - 1000 */
+.frag-heatmap-5 {
+  background: rgba(243, 85, 45, 0.35);
+}
+
+/* 1000 - 2000 */
+.frag-heatmap-6 {
+  background: rgba(255, 0, 2, 0.35);
+}
+
+/* 2000 - 5000 */
+.frag-heatmap-7 {
+  background: rgba(231, 0, 1, 0.35);
+}
+
+/* 5000 - 10000 */
+.frag-heatmap-8 {
+  background: rgba(207, 0, 0, 0.35);
+}
+
+/* > 10000 */
+.frag-heatmap-9 {
+  background: rgba(184, 0, 0, 0.35);
+}
+
+.frag-highlighted {
+  background-color:lightblue;
+}
+
+.frag-highlighted-margin {
+  background-color: lightblue;
+  width: 5px !important;
+  margin-left: 3px;
 }
