@@ -1,125 +1,31 @@
-export interface FragmentMap {
-  startLine: number;
-  startChar: number;
-  endLine: number;
-  endChar: number;
-  length: number;
-}
+import { ContractJSON, ContractMappings, EVMMap } from "../types"
+import axios from 'axios'
+import { OUTPUT_FILE_NAME } from "../constants"
 
-export interface GasMapItem {
-  numTx: number;
-  totalMaxOpcodeGas: number;
-  meanMaxOpcodeGas: number;
-  totalMinOpcodeGas: number;
-  meanMinOpcodeGas: number;
-  totalMemGas: number;
-  meanGemGas: number;
-  meanWcGas: number;
-}
-
-export interface EVMMap {
-  [key: string]: {
-    sourceMap: FragmentMap,
-    compiledMaps: FragmentMap[],
-    gasMap?: GasMapItem
-  }
-}
 
 export function safeAccess(object: any, path: any[]) {
   return object
     ? path.reduce(
-        (accumulator, currentValue) => (accumulator && accumulator[currentValue] ? accumulator[currentValue] : null),
+        (accumulator, currentValue) => (accumulator && accumulator[currentValue] ? accumulator[currentValue] : {}),
         object
       )
-    : null
+    : {}
 }
 
-
-const EVM_REGEX = /\s+\/\*\s+\"(?<Filename>[\w|\#|\.]+)\":(?<StartOffset>\d+):(?<EndOffset>\d+)\s+(?<Identifier>[\w|{]+)?./
-
-export const parseEVMMappings = (sourceText: string, compiledEVM: string) => {
-  // outputs a mapping of classes to lines
-  
-  const splitEVM = compiledEVM.split('\n')
-
-  // let unknownFunctionJumpType = false
-
-  const filteredLinesArray = []
-
-  let currLineNumber = 1
-
-  let currMap = undefined as undefined | {
-    sourceMap: FragmentMap,
-    compiledMaps: FragmentMap[]
+export const hashString = function(str: string, seed = 0) {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) {
+      ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
   }
+  h1 = Math.imul(h1 ^ (h1>>>16), 2246822507) ^ Math.imul(h2 ^ (h2>>>13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2>>>16), 2246822507) ^ Math.imul(h1 ^ (h1>>>13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1>>>0);
+};
 
-  const mappings = {} as EVMMap
 
-  for (const ins of splitEVM) {
-    if (EVM_REGEX.test(ins)) {
-      const match = EVM_REGEX.exec(ins)
-      if (match && match.groups) {
-        console.log(match.groups.Filename)
-        if (match.groups.Filename.indexOf('#utility.yul') !== -1) {
-          currMap = undefined
-          continue
-        }
-
-        if (match.groups.Identifier && match.groups.Identifier === "contract") {
-          currMap = undefined
-          continue
-        }
-
-        const currKey = `${match.groups.StartOffset}:${match.groups.EndOffset}`
-        const [startLine, startChar] = getLineCharFromOffset(sourceText, parseInt(match.groups.StartOffset))
-        const [endLine, endChar] = getLineCharFromOffset(sourceText, parseInt(match.groups.EndOffset))
-        
-        if (!(currKey in mappings)) {
-          const sourceMap = {
-            startLine: startLine,
-            startChar: startChar,
-            endLine: endLine,
-            endChar: endChar,
-            length: parseInt(match.groups.EndOffset) - parseInt(match.groups.StartOffset), // when marking, start with greatest lengths first
-          }
-
-          mappings[currKey] = {
-            sourceMap: sourceMap,
-            compiledMaps: []
-          }
-        }
-
-        const compiledMap = {
-          startLine: currLineNumber,
-          startChar: 1,
-          endLine: currLineNumber,
-          endChar: 1,
-          length: parseInt(match.groups.EndOffset) - parseInt(match.groups.StartOffset), // when marking, start with greatest lengths first
-        }
-        
-        mappings[currKey].compiledMaps.push(compiledMap)
-        
-        currMap = mappings[currKey]
-      }
-    } else {
-      filteredLinesArray.push(ins)
-      
-      if (currMap != undefined) {
-        currMap.compiledMaps[currMap.compiledMaps.length - 1].endLine = currLineNumber
-      }
-
-      currLineNumber++
-    }
-  }
-
-  const filteredLines = filteredLinesArray.join('\n')
-
-  return {
-    mappings,
-    filteredLines
-  }
-  
-}
+// const EVM_REGEX = /\s+\/\*\s+\"(?<Filename>[\w|\#|\.]+)\":(?<StartOffset>\d+):(?<EndOffset>\d+)\s+(?<Identifier>[\w|{]+)?./
 
 const BEGIN = "begin"
 const END = "end"
@@ -130,6 +36,12 @@ const VALUE = "value"
 const CODE = ".code"
 const DATA = ".data"
 const AUXDATA = ".auxdata"
+
+const JSON_CONTRACTS = "contracts"
+const JSON_SOURCES = "sources"
+const JSON_AST = "ast"
+const JSON_EVM = "evm"
+const JSON_LEGACY = "legacyAssembly"
 
 interface LegacyEVMNode {
   [BEGIN]: number,
@@ -149,47 +61,57 @@ interface LegacyEVM {
   }
 }
 
-export const parseLegacyEVMMappings = (sourceText: string, compiledJson: any) => {
+export const parseLegacyEVMMappings = (sourceText: string, compiledJSON: any) => {
   // outputs a mapping of classes to lines
   
-  const contractFile = Object.keys(compiledJson.contracts)[0]
-  const contractSol = Object.keys(compiledJson.contracts[contractFile])[0]
-  const compiledEVM = compiledJson.contracts[contractFile][contractSol].evm.legacyAssembly
+  const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME]))
 
-  const compiledAST = compiledJson.sources[contractFile].ast
-
-  const contractDefinitionSrc = findContractDefinition(compiledAST)
-
-  const filteredLinesArray = []
-
-  // let currMap = undefined as undefined | {
-  //   sourceMap: FragmentMap,
-  //   compiledMaps: FragmentMap[]
-  // }
-
-  const mappings = {} as EVMMap
-
-  filteredLinesArray.push("CONSTRUCTOR:")
-
-  parseLegacyEVMSection(sourceText, compiledEVM[CODE], filteredLinesArray, mappings, contractDefinitionSrc)
-
-  console.log(`Num instructions in constructor: ${compiledEVM[CODE].length}`)
-
-  filteredLinesArray.push("SUBROUTINES:")
-
-  parseLegacyEVMSection(sourceText, compiledEVM[DATA]["0"][CODE], filteredLinesArray, mappings, contractDefinitionSrc)
-
-  console.log(`Num instructions in sub: ${compiledEVM[DATA]["0"][CODE].length}`)
-
-  const filteredLines = filteredLinesArray.join('\n')
-
-  return {
-    mappings,
-    filteredLines
+  let parsedMappings = {} as {
+    [contract: string]: ContractMappings;
   }
+
+  for (const contractName of contractNames) {
+    const compiledEVM = safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME, contractName, JSON_EVM, JSON_LEGACY])
+
+    const compiledAST = safeAccess(compiledJSON, [JSON_SOURCES, OUTPUT_FILE_NAME, JSON_AST])
+
+    if (compiledEVM !== {} && compiledAST !== {}) {
+      const contractDefinitionSrc = findContractDefinition(compiledAST)
+
+      const filteredLinesArray = []
+
+      // let currMap = undefined as undefined | {
+      //   sourceMap: FragmentMap,
+      //   compiledMaps: FragmentMap[]
+      // }
+
+      const mappings = {} as {[key: string]: EVMMap}
+
+      filteredLinesArray.push("CONSTRUCTOR:")
+
+      parseLegacyEVMSection(sourceText, compiledEVM[CODE], filteredLinesArray, mappings, contractDefinitionSrc)
+
+      console.log(`Num instructions in constructor: ${compiledEVM[CODE].length}`)
+
+      filteredLinesArray.push("SUBROUTINES:")
+
+      parseLegacyEVMSection(sourceText, compiledEVM[DATA]["0"][CODE], filteredLinesArray, mappings, contractDefinitionSrc)
+
+      console.log(`Num instructions in sub: ${compiledEVM[DATA]["0"][CODE].length}`)
+
+      const filteredLines = filteredLinesArray.join('\n')
+
+      parsedMappings[contractName] = {
+        mappings,
+        filteredLines
+      }
+    }
+  }
+
+  return parsedMappings
 }
 
-const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: EVMMap, contractDefinitionSrc: string) => {
+const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: {[key: string]: EVMMap}, contractDefinitionSrc: string) => {
   let num_tags = 0
   
   for (let i = 0; i < code.length; i++) {
@@ -265,12 +187,31 @@ const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filter
   console.log(`Num tags: ${num_tags}`)
 }
 
-export const addGasMetrics = (mappings: EVMMap, gasMap: any) => {
+export const parseCompiledJSON = (compiledJSON: any) => {
+  const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME]))
+
+  let contractJSON = {} as {
+    [contract: string]: ContractJSON
+  }
+
+  for (const contractName of contractNames) {
+    contractJSON[contractName] = safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME, contractName]) as ContractJSON
+  }
+
+  let contractAST = safeAccess(compiledJSON, [JSON_SOURCES, OUTPUT_FILE_NAME, JSON_AST]) as any
+
+  return {
+    contracts: contractJSON,
+    ast: contractAST
+  }
+}
+
+export const addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any) => {
   _addGasMetrics(mappings, gasMap.creation)
   _addGasMetrics(mappings, gasMap.runtime)
 }
 
-const _addGasMetrics = (mappings: EVMMap, gasMapSection: any) => {
+const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) => {
   for (const key of Object.keys(gasMapSection)) {
     if (key in mappings) {
       mappings[key].gasMap = gasMapSection[key]
@@ -361,3 +302,18 @@ export function getRandomInt(max: number) {
   return Math.floor(Math.random() * max);
 }
 
+
+// REMOTE NETWORK REQUESTS
+
+export const compileSourceRemote = (sourceValue: any) => {
+  return axios.post('http://127.0.0.1:5000/compile/', {
+    content: sourceValue,
+  })
+}
+
+export const symExecSourceRemote = (sourceValue: any, compiledJSON: any) => {
+  return axios.post('http://127.0.0.1:5000/sym/', {
+    content: sourceValue,
+    json: JSON.stringify(compiledJSON)
+  })
+}

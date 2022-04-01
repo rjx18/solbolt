@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor from "@monaco-editor/react";
-import { EVMMap, getGasClass } from '../../utils';
+import { getGasClass } from '../../utils';
+import { EVMMap, HighlightedClass, HighlightedSource } from '../../types';
+import { NUM_FRAGMENT_CLASSES } from '../../constants';
 
 interface PaneProps {
-  mappings?: EVMMap;
+  mappings?: {[key: string]: EVMMap};
   content: string;
   readOnly?: boolean;
-  isCompiled: boolean;
+  source: HighlightedSource;
+  contract?: string;
   language: string;
   height: string;
-  highlightedClass?: any;
+  highlightedClass: HighlightedClass;
   handleMouseHover: (key: string) => void;
-  // handleMountRef: (editorRef: any) => void // so the parent also has a reference to the editor
 }
 
-const NUM_LINE_CLASSES = 12
-
 const Pane = forwardRef((props: PaneProps, ref: any) => {
-  const {mappings, content, readOnly, isCompiled, language, height, highlightedClass, handleMouseHover} = props
+  const {mappings, content, readOnly, source, contract, language, height, highlightedClass, handleMouseHover} = props
 
   useImperativeHandle(ref, () => ({
     getValue() {
@@ -29,15 +29,21 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
     }
   })); 
 
-  const [decorations, setDecorations] = useState(undefined as any)
-  const [mouseMoveHandler, setMouseMoveHandler] = useState(undefined as any)
-
   const editorRef = useRef<any>();
   const monacoRef = useRef<any>();
+
+  const decorationsRef = useRef<any>();
+  const mouseHandlerRef = useRef<any>();
+
+  const isCompiled = source === HighlightedSource.COMPILE
+
 
   function handleEditorDidMount(editor: any, monaco: any) {
     editorRef.current = editor; 
     monacoRef.current = monaco;
+
+    decorationsRef.current = undefined;
+    mouseHandlerRef.current = undefined;
   }
 
   const handleMouseMove = (event: any) => {
@@ -56,7 +62,7 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
             (mappingItem.sourceMap.startLine !== mappingItem.sourceMap.endLine && mappingItem.sourceMap.startLine <= lineNumber && mappingItem.sourceMap.endLine >= lineNumber) || 
             (mappingItem.sourceMap.startLine === mappingItem.sourceMap.endLine && mappingItem.sourceMap.startLine === lineNumber && mappingItem.sourceMap.startChar <= column && mappingItem.sourceMap.endChar >= column)
           ) {
-            if (!highlightedClass || mappingKey.key !== highlightedClass.class) {
+            if (!highlightedClass || mappingKey.key !== highlightedClass.className) {
               console.log(`triggered mouse over source for ${mappingKey.key}`)
               handleMouseHover(mappingKey.key)
             }
@@ -67,7 +73,8 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
             if (
               (compiledFragment.startLine <= lineNumber && compiledFragment.endLine >= lineNumber)
             ) {
-              if (!highlightedClass || mappingKey.key !== highlightedClass.class) {
+              if (!highlightedClass || mappingKey.key !== highlightedClass.className) {
+                console.log(`triggered mouse over source for ${mappingKey.key}`)
                 handleMouseHover(mappingKey.key)
               }
               return;
@@ -80,25 +87,24 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
 
   useEffect(() => {
     if (editorRef.current) {
-      if (mouseMoveHandler) {
-        mouseMoveHandler.dispose()
+      if (mouseHandlerRef.current) {
+        mouseHandlerRef.current.dispose()
       }
-      const newMouseHandler = editorRef.current.onMouseMove(handleMouseMove);
-      setMouseMoveHandler(newMouseHandler)
+      mouseHandlerRef.current = editorRef.current.onMouseMove(handleMouseMove);
     }
-  }, [editorRef.current, mappings, highlightedClass]);
+  }, [mappings, highlightedClass]);
   
 
   useEffect(() => {
     if (editorRef.current && monacoRef.current && mappings) {
 
-      console.log('updating mappings!')
+      console.log('updating mappings for source ' + (source === HighlightedSource.SOURCE ? 'SOURCE' : 'COMPILED') + ' and contract: ' + contract)
 
       if (highlightedClass) {
-        if (!isCompiled && highlightedClass.triggeredFrom === "compile") {
-          editorRef.current.revealLineInCenterIfOutsideViewport(mappings[highlightedClass.class].sourceMap.startLine);
-        } else if (isCompiled && highlightedClass.triggeredFrom === "source") {
-          editorRef.current.revealLineInCenterIfOutsideViewport(mappings[highlightedClass.class].compiledMaps[0].startLine);
+        if (!isCompiled && highlightedClass.triggeredFrom === HighlightedSource.COMPILE) {
+          editorRef.current.revealLineInCenterIfOutsideViewport(mappings[highlightedClass.className].sourceMap.startLine);
+        } else if (isCompiled && highlightedClass.triggeredFrom === HighlightedSource.SOURCE) {
+          editorRef.current.revealLineInCenterIfOutsideViewport(mappings[highlightedClass.className].compiledMaps[0].startLine);
         }
       }
 
@@ -112,12 +118,12 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
 
       for (const mappingKey of mappingKeysSorted) {
         const mappingItem = mappings[mappingKey.key]
-        const isHighlighted = highlightedClass && highlightedClass.class === mappingKey.key
+        const isHighlighted = highlightedClass && highlightedClass.className === mappingKey.key
 
         if (!isCompiled) {
           const wholeLine = mappingItem.sourceMap.startLine !== mappingItem.sourceMap.endLine
 
-          const colorGasClass = mappingItem.gasMap ? getGasClass(mappingItem.gasMap.meanWcGas) : `frag-color-${currClassCount % NUM_LINE_CLASSES}`
+          const colorGasClass = mappingItem.gasMap ? getGasClass(mappingItem.gasMap.meanWcGas) : `frag-color-${currClassCount % NUM_FRAGMENT_CLASSES}`
 
           const colorClass = isHighlighted ? 'frag-highlighted' : colorGasClass
 
@@ -132,7 +138,7 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
 
           deltaDecorations.push(currDecoration)
         } else {
-          const colorGasClass = mappingItem.gasMap ? getGasClass(mappingItem.gasMap.meanWcGas) : `frag-color-${currClassCount % NUM_LINE_CLASSES}`
+          const colorGasClass = mappingItem.gasMap ? getGasClass(mappingItem.gasMap.meanWcGas) : `frag-color-${currClassCount % NUM_FRAGMENT_CLASSES}`
 
           const colorClass = isHighlighted ? 'frag-highlighted' : colorGasClass
 
@@ -154,13 +160,14 @@ const Pane = forwardRef((props: PaneProps, ref: any) => {
       }
 
       const updatedDecorations = editorRef.current.deltaDecorations(
-          decorations || [],
+          decorationsRef.current || [],
           deltaDecorations
         );
 
-      setDecorations(updatedDecorations)
+      decorationsRef.current = updatedDecorations
+
     }
-  }, [editorRef.current, monacoRef.current, mappings, highlightedClass]);
+  }, [mappings, highlightedClass]);
 
   return <Editor
     defaultLanguage={language}

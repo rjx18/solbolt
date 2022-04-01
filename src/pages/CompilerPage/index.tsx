@@ -9,11 +9,17 @@ import 'codemirror/keymap/sublime';
 import { styled, createTheme, ThemeProvider } from '@mui/system';
 import 'codemirror/theme/neo.css';
 import axios from 'axios';
-import { addGasMetrics, EVMMap, getRandomInt, parseEVMMappings, parseLegacyEVMMappings } from '../../utils';
+import { addGasMetrics, compileSourceRemote, getRandomInt, hashString, parseLegacyEVMMappings } from '../../utils';
 import './Compiler.css';
 
 import Editor from "@monaco-editor/react";
 import Pane from '../../components/Pane';
+import { useMappings } from '../../contexts/Mappings';
+import { useContract, useContractNames, useHash } from '../../contexts/Contracts';
+import { useRemoteCompiler, useRemoteSymExec } from '../../hooks';
+import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations';
+import { HighlightedSource } from '../../types';
+import { DEFAULT_SOLIDITY_VALUE } from '../../constants';
 
 const CenteredBox = styled(Box)(({ theme }) => ({
   margin: "auto",
@@ -21,33 +27,26 @@ const CenteredBox = styled(Box)(({ theme }) => ({
   alignItems: "center",
 }));
 
-const NUM_LINE_CLASSES = 18
-
-const defaultValue = `// SPDX-License-Identifier: GPL-3.0
-pragma solidity >=0.7.0 <0.9.0;
-contract TestLoop {
-    // mapping(uint256 => uint256) public mappingArray;
-    string private storedString;
-
-    constructor() {
-        
-    }
-
-    function hiddenLoop(string calldata newString) external {
-        storedString = newString;
-    }
-}
-  `
 
 function CompilerPage() {
 
   // const [compiledEVM, setCompiledEVM] = useState('')
-  const [filteredEVM, setFilteredEVM] = useState('')
-  const [compiledJson, setCompiledJson] = useState(undefined as any)
-  const [mappings, setMappings] = useState(undefined as undefined | EVMMap)
-  const [highlightedClass, setHighlightedClass] = useState(undefined as any)
+  // const [filteredEVM, setFilteredEVM] = useState('')
+  // const [compiledJson, setCompiledJson] = useState(undefined as any)
+  // const [mappings, setMappings] = useState(undefined as undefined | EVMMap)
+  // const [highlightedClass, setHighlightedClass] = useState(undefined as any)
 
-  const [isCompiled, setIsCompiled] = useState(true)
+  const contractNames = useContractNames()
+
+  const contractName = contractNames.length !== 0 ? contractNames[0] : 'UNKNOWN'
+
+  const mappings = useMappings(contractName)
+
+  const highlightedClass = useHighlightedClass()
+  const updateHighlightedClass = useUpdateHiglightedClass()
+
+  const remoteCompile = useRemoteCompiler()
+  const remoteSymExec = useRemoteSymExec(contractName)
 
   // const [markers, setMarkers] = useState([] as any[])
 
@@ -57,54 +56,23 @@ function CompilerPage() {
   const compiledChildRef = useRef<any>();
 
   const handleClick = () => {
-    if (sourceChildRef.current && compiledChildRef.current) {
+    if (sourceChildRef.current && remoteCompile) {
       const sourceValue = sourceChildRef.current.getValue()
 
-      axios.post('http://127.0.0.1:5000/compile/', {
-        content: sourceValue,
-      }).then((r) => {
-        if (r.status === 200) {
-          setCompiledJson(r.data.result)
-          const {mappings, filteredLines} = parseLegacyEVMMappings(sourceValue, r.data.result)
-          
-          setHighlightedClass(undefined)
-          setFilteredEVM(filteredLines)
-          setMappings(mappings)
-        }
-      }).catch((r) => {
+      remoteCompile(sourceValue).catch((r: Error) => {
         console.log(r)
-        const errorMessage = r.response.data.status.split("\n")[0]
-        setError(errorMessage)
+        setError(r.message)
       })
     }
   }
 
   const handleSymExec = () => {
-    if (isCompiled && sourceChildRef.current && compiledChildRef.current) {
+    if (sourceChildRef.current && remoteSymExec) {
       const sourceValue = sourceChildRef.current.getValue()
 
-      axios.post('http://127.0.0.1:5000/sym/', {
-        content: sourceValue,
-        json: JSON.stringify(compiledJson)
-      }).then((r) => {
-        if (r.status === 200) {
-          console.log(r.data)
-
-          if (mappings) {
-            const newMappings = {...mappings}
-
-            addGasMetrics(newMappings, r.data)
-
-            console.log('new mappings')
-
-            console.log(newMappings)
-
-            setMappings(newMappings)
-          }
-        }
-      }).catch((r) => {
-        const errorMessage = r.response.data.status.split("\n")[0]
-        setError(errorMessage)
+      remoteSymExec(sourceValue).catch((r: Error) => {
+        console.log(r)
+        setError(r.message)
       })
     }
   }
@@ -114,17 +82,11 @@ function CompilerPage() {
   }
 
   const handleSourceMouseMove = (key: string) => {
-    setHighlightedClass({
-      class: key,
-      triggeredFrom: "source"
-    })
+    updateHighlightedClass(key, HighlightedSource.SOURCE)
   }
 
   const handleCompiledMouseMove = (key: string) => {
-    setHighlightedClass({
-      class: key,
-      triggeredFrom: "compile"
-    })
+    updateHighlightedClass(key, HighlightedSource.COMPILE)
   }
 
   return <>
@@ -140,12 +102,12 @@ function CompilerPage() {
         <Pane
           ref={sourceChildRef}
           language="sol"
-          content={defaultValue}
+          content={DEFAULT_SOLIDITY_VALUE}
           height="80vh"
           handleMouseHover={handleSourceMouseMove}
           readOnly={false}
-          isCompiled={false}
-          mappings={mappings}
+          source={HighlightedSource.SOURCE}
+          mappings={mappings.mappings}
           highlightedClass={highlightedClass}
         />
       </Box>
@@ -164,17 +126,18 @@ function CompilerPage() {
         </Box>
       </Box>
       <Box width="700px">
-      <Pane
-          ref={compiledChildRef}
-          language="plaintext"
-          content={filteredEVM}
-          height="80vh"
-          handleMouseHover={handleCompiledMouseMove}
-          readOnly={true}
-          isCompiled={true}
-          mappings={mappings}
-          highlightedClass={highlightedClass}
-        />
+        <Pane
+            ref={compiledChildRef}
+            language="plaintext"
+            content={mappings.filteredLines}
+            height="80vh"
+            handleMouseHover={handleCompiledMouseMove}
+            readOnly={true}
+            source={HighlightedSource.COMPILE}
+            contract={contractName}
+            mappings={mappings.mappings}
+            highlightedClass={highlightedClass}
+          />
       </Box>
     </CenteredBox>
   </>;

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useMemo, useCallback, useEffect } from 'react'
-import { EVMMap } from '../types'
+import { ContractMappings, EVMMap } from '../types'
 
 import { safeAccess } from '../utils'
 
@@ -11,28 +11,27 @@ export enum UpdateTypes {
 export type MappingsUpdateAction = {type: UpdateTypes.UPDATE_MAPPING} | {type: UpdateTypes.UPDATE_ALL_MAPPINGS}
 
 export interface MappingsState {
-  [contract: number]: {
-    [key: string]: EVMMap
-  };
+  [contract: string]: ContractMappings;
 } // compiled mapping have hoverMessage, with type 'fn' and 'loop'
 
 export interface Payload {
-  contract: number;
-  key: string;
+  contract: string
+  key: string
   evmMap: EVMMap
 }
 
 export interface Payload {
-  contract: number;
+  contract: string
   allMaps: {
     [key: string]: EVMMap
-  };
+  }
+  filteredLines: string
 }
 
 const MappingsContext = createContext<
   [MappingsState | undefined, {
-    updateMapping: ((contract: number, key: string, evmMap: string ) => void) | undefined, 
-    updateAllMappings: ((contract: number, allMaps: {[key: string]: EVMMap}) => void) | undefined
+    updateMapping: ((contract: string, key: string, evmMap: string) => void) | undefined, 
+    updateAllMappings: ((contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string) => void) | undefined
   }]>([undefined, {updateMapping: undefined, updateAllMappings: undefined}]);
 
 export function useMappingsContext() {
@@ -49,8 +48,11 @@ function reducer(state: MappingsState, { type, payload }: { type: UpdateTypes, p
       return {
         ...state,
         [contract]: {
-          ...(safeAccess(state, [contract]) || {}),
-          [key]: evmMap
+          ...((safeAccess(state, [contract]) || {}) as ContractMappings),
+          mappings: {
+            ...((safeAccess(state, [contract]) || {}) as ContractMappings).mappings,
+            [key]: evmMap
+          }
         }
       }
     }
@@ -59,11 +61,14 @@ function reducer(state: MappingsState, { type, payload }: { type: UpdateTypes, p
       if (!payload) {
         throw Error(`Payload is undefined or null!`)
       }
-      const { contract, allMaps } = payload
+      const { contract, allMaps, filteredLines } = payload
       return {
         ...state,
         [contract]: {
-          ...allMaps
+          mappings: {
+            ...allMaps
+          },
+          filteredLines: filteredLines
         }
       }
     }
@@ -81,8 +86,8 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.UPDATE_MAPPING, payload: { contract, key, evmMap } as Payload })
   }, [])
 
-  const updateAllMappings = useCallback((contract, allMaps) => {
-    dispatch({ type: UpdateTypes.UPDATE_ALL_MAPPINGS, payload: { contract, allMaps } as Payload }  )
+  const updateAllMappings = useCallback((contract, allMaps, filteredLines) => {
+    dispatch({ type: UpdateTypes.UPDATE_ALL_MAPPINGS, payload: { contract, allMaps, filteredLines } as Payload }  )
   }, [])
 
   return (
@@ -97,6 +102,45 @@ export default function Provider({ children }: {children: any}) {
     </MappingsContext.Provider>
   )
 }
+
+export function useUpdateMappings() {
+
+  const [, { updateMapping }] = useMappingsContext()
+
+  return useCallback(
+      (contract: string, key: string, evmMap: string) => {
+        if (
+          updateMapping &&
+          contract &&
+          key &&
+          evmMap
+        ) {
+          updateMapping(contract, key, evmMap)
+        }
+      },
+      [updateMapping]
+    )
+}
+
+export function useUpdateAllMappings() {
+
+  const [, { updateAllMappings }] = useMappingsContext()
+
+  return useCallback(
+      (contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string) => {
+        if (
+          updateAllMappings &&
+          contract &&
+          allMaps &&
+          filteredLines
+        ) {
+          updateAllMappings(contract, allMaps, filteredLines)
+        }
+      },
+      [updateAllMappings]
+    )
+}
+
 
 // export function Updater() {
 //   const [, { updateBlockNumber }] = useApplicationContext()
@@ -134,8 +178,8 @@ export default function Provider({ children }: {children: any}) {
 //   return null
 // }
 
-export function useEVMMaps(contract: number) {
+export function useMappings(contract: string) {
   const [state] = useMappingsContext();
 
-  return safeAccess(state, [contract])
+  return safeAccess(state, [contract]) as ContractMappings
 }

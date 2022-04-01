@@ -14,5 +14,5 @@ contract TestLoop {
 }
   ` // change this to use stored Source file later with a context
 
-export const NUM_FRAGMENT_CLASSES = 18
-
+export const NUM_FRAGMENT_CLASSES = 12
+export const OUTPUT_FILE_NAME = 'output.sol'
