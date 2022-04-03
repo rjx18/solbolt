@@ -13,25 +13,26 @@ const RootBox = styled(Box)(({ theme }) => ({
   //   marginTop: 20
   // },
   width: '100%',
-  height: '100vh'
+  height: '100vh',
+  margin: 0,
+  padding: 0,
+  overflowY: 'hidden' // TODO: figure out where the extra vertical padding comes from
 }));
 
 
 function App() {
   return (
-    <div className="App-root">
+    <RootBox display="flex">
       <Router>
-        <RootBox display="flex">
-          <Routes>
-            <Route path="/compile" element={<CompilerPage />} />
-            <Route
-                path="*"
-                element={<Navigate to="/compile" />}
-            />
-          </Routes>
-        </RootBox>
+        <Routes>
+          <Route path="/compile" element={<CompilerPage />} />
+          <Route
+              path="*"
+              element={<Navigate to="/compile" />}
+          />
+        </Routes>
       </Router>
-    </div>
+    </RootBox>
   );
 }
 

@@ -214,9 +214,23 @@ export const addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any) =>
 const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) => {
   for (const key of Object.keys(gasMapSection)) {
     if (key in mappings) {
-      mappings[key].gasMap = gasMapSection[key]
+      mappings[key].gasMap = {
+        ...gasMapSection[key],
+        class: getGasClass(gasMapSection[key].meanWcGas)
+      }
     }
   }
+}
+
+export const isTargetInLineRange = (targetLine: number, targetChar: number, sourceStartLine: number, sourceEndLine: number, sourceStartChar: number = 1, sourceEndChar: number = 1) => {
+  const isSameLine = sourceStartLine === sourceEndLine
+
+  if (!isSameLine && targetLine >= sourceStartLine && targetLine <= sourceEndLine) {
+    return true
+  } else if (isSameLine && targetLine === sourceStartLine && targetChar >= sourceStartChar && targetChar <= sourceEndChar) {
+    return true
+  }
+  return false
 }
 
 export const getGasClass = (gasAmount: number) => {
