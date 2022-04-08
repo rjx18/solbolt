@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import Editor from "@monaco-editor/react";
-import { getGasClass, isTargetInLineRange } from '../../utils';
+import { getGasClass, isTargetInLineRange, sortMappingsByLength } from '../../utils';
 import { EVMMap, HighlightedClass, HighlightedSource } from '../../types';
 import { NUM_FRAGMENT_CLASSES } from '../../constants';
 
@@ -50,18 +50,12 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
     return highlightedClass !== null && highlightedClass.className === currentClass
   }
 
-  const sortMappingsByLength = (mappings: {[key: string]: EVMMap}) => {
-    const mappingKeysSorted = Object.keys(mappings).map((k) => {return {key: k, length: mappings[k].sourceMap.length}})
-    mappingKeysSorted.sort((firstEl, secondEl) => { return firstEl.length - secondEl.length })
-
-    return mappingKeysSorted
-  }
-
   const handleMouseMove = (event: any) => {
     if (event.target.position && mappings) {
       const {column, lineNumber} = event.target.position;
       
       const mappingKeysSorted = sortMappingsByLength(mappings)
+      mappingKeysSorted.reverse()
 
       for (const mappingKey of mappingKeysSorted) {
         const mappingItem = mappings[mappingKey.key]
@@ -97,12 +91,14 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
   }, [mappings, highlightedClass]);
   
 
-  const generateCompilerDecorations = (mappingItem: EVMMap, currClassCount: number, isHighlighted: boolean) => {
+  const generateSourceDecorations = (mappingItem: EVMMap, currClassCount: number, isHighlighted: boolean) => {
     const wholeLine = mappingItem.sourceMap.startLine !== mappingItem.sourceMap.endLine
 
     const colorGasClass = mappingItem.gasMap ? mappingItem.gasMap.class : `frag-color-${currClassCount % NUM_FRAGMENT_CLASSES}`
 
     const colorClass = isHighlighted ? 'frag-highlighted' : colorGasClass
+
+    console.log('colorclass ' + colorClass)
 
     const currDecoration = {
       range: new monacoRef.current.Range(mappingItem.sourceMap.startLine, mappingItem.sourceMap.startChar, mappingItem.sourceMap.endLine, mappingItem.sourceMap.endChar),
@@ -116,7 +112,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
     return currDecoration
   }
 
-  const generateSourceDecorations = (mappingItem: EVMMap, currClassCount: number, isHighlighted: boolean) => {
+  const generateCompilerDecorations = (mappingItem: EVMMap, currClassCount: number, isHighlighted: boolean) => {
     const colorGasClass = mappingItem.gasMap ? mappingItem.gasMap.class : `frag-color-${currClassCount % NUM_FRAGMENT_CLASSES}`
 
     const colorClass = isHighlighted ? 'frag-highlighted' : colorGasClass
@@ -144,7 +140,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
 
       console.log('updating mappings for source ' + (source === HighlightedSource.SOURCE ? 'SOURCE' : 'COMPILED') + ' and contract: ' + contract)
 
-      if (highlightedClass) {
+      if (highlightedClass && mappings[highlightedClass.className]) {
         if (!isCompiled && highlightedClass.triggeredFrom === HighlightedSource.COMPILE) {
           editorRef.current.revealLineInCenterIfOutsideViewport(mappings[highlightedClass.className].sourceMap.startLine);
         } else if (isCompiled && highlightedClass.triggeredFrom === HighlightedSource.SOURCE) {
@@ -155,6 +151,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
       const deltaDecorations = [] as any[]
 
       const mappingKeysSorted = sortMappingsByLength(mappings) // sort by length descending, so we can mark the largest regions first
+      // mappingKeysSorted.reverse()
 
       let currClassCount = 0
 
@@ -163,9 +160,9 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
         const isHighlighted = highlightedClass && highlightedClass.className === mappingKey.key
 
         if (!isCompiled) {
-          deltaDecorations.push(generateCompilerDecorations(mappingItem, currClassCount, isHighlighted))
+          deltaDecorations.push(generateSourceDecorations(mappingItem, currClassCount, isHighlighted))
         } else {
-          const newDeltaDecorations = generateSourceDecorations(mappingItem, currClassCount, isHighlighted)
+          const newDeltaDecorations = generateCompilerDecorations(mappingItem, currClassCount, isHighlighted)
 
           for (const currDecoration of newDeltaDecorations) {
             deltaDecorations.push(currDecoration)

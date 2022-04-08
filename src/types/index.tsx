@@ -18,11 +18,6 @@ export interface GasMapItem {
   meanWcGas: number;
 }
 
-export interface HoverMessage {
-  type: string // 'fn' or 'loop'
-  value: string // to change later if need to
-}
-
 export enum HighlightedSource { COMPILE, SOURCE }
 
 export interface HighlightedClass {
@@ -34,7 +29,9 @@ export interface EVMMap {
   sourceMap: FragmentMap
   compiledMaps: FragmentMap[]
   gasMap?: GasMapItem
-  hoverMessage?: HoverMessage[]
+  loopGas?: {
+    [pc: number]: number
+  }
 }
 
 export interface EVMJSON {
@@ -55,6 +52,54 @@ export interface ContractMappings {
     [key: string]: EVMMap;
   }
   filteredLines: string
+}
+
+export const COMPILER_PEEPHOLE = 'peephole'
+export const COMPILER_INLINER = 'inliner'
+export const COMPILER_JUMPDESTREMOVER = 'jumpdestRemover'
+export const COMPILER_ORDERLITERALS = 'orderLiterals'
+export const COMPILER_DEDUPLICATE = 'deduplicate'
+export const COMPILER_CSE = 'cse'
+export const COMPILER_CONSTANTOPTIMIZER = 'constantOptimizer'
+export const COMPILER_YUL = 'yul'
+
+export const COMPILER_ENABLE = 'enable_optimizer'
+export const COMPILER_RUNS = 'optimize_runs'
+export const COMPILER_EVM = 'evmVersion'
+export const COMPILER_VIAIR = 'viaIR'
+export const COMPILER_DETAILS = 'details'
+
+export interface CompilerOptimizerDetails {
+  [COMPILER_PEEPHOLE]: boolean
+  [COMPILER_INLINER]: boolean
+  [COMPILER_JUMPDESTREMOVER]: boolean
+  [COMPILER_ORDERLITERALS]: boolean
+  [COMPILER_DEDUPLICATE]: boolean
+  [COMPILER_CSE]: boolean
+  [COMPILER_CONSTANTOPTIMIZER]: boolean
+  [COMPILER_YUL]: boolean
+}
+
+export interface CompilerSettings {
+  [COMPILER_ENABLE]: boolean
+  [COMPILER_RUNS]: number
+  [COMPILER_EVM]: string
+  [COMPILER_VIAIR]: boolean
+  [COMPILER_DETAILS]: CompilerOptimizerDetails
+}
+
+export const SYMEXEC_MAXDEPTH = 'max_depth'
+export const SYMEXEC_CALLDEPTH = 'call_depth_limit'
+export const SYMEXEC_STRATEGY = 'strategy'
+export const SYMEXEC_LOOPBOUND = 'loop_bound'
+export const SYMEXEC_TX = 'transaction_count'
+
+export interface SymexecSettings {
+  [SYMEXEC_MAXDEPTH]: number
+  [SYMEXEC_CALLDEPTH]: number
+  [SYMEXEC_STRATEGY]: string
+  [SYMEXEC_LOOPBOUND]: number
+  [SYMEXEC_TX]: number
 }
 
 // export interface ContractData {

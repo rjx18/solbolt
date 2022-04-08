@@ -1,8 +1,9 @@
 import { useEffect, useCallback } from 'react';
 import { useCompiledJSON, useHash, useUpdateAllContracts } from '../contexts/Contracts';
 import { useRemoveHiglightedClass } from '../contexts/Decorations';
+import { useCompilerSettingsManager, useSymexecSettingsManager } from '../contexts/LocalStorage';
 import { useMappings, useUpdateAllMappings } from '../contexts/Mappings';
-import { addGasMetrics, compileSourceRemote, hashString, parseCompiledJSON, parseLegacyEVMMappings, symExecSourceRemote } from '../utils';
+import { addSymexecMetrics, compileSourceRemote, hashString, parseCompiledJSON, parseLegacyEVMMappings, symExecSourceRemote } from '../utils';
 
 export const useRemoteCompiler = () => {
 
@@ -10,10 +11,12 @@ export const useRemoteCompiler = () => {
   const updateAllContracts = useUpdateAllContracts()
   const removeHighlightedClass = useRemoveHiglightedClass()
 
+  const [compilerSettings, ] = useCompilerSettingsManager()
+
   return useCallback(
     (sourceValue: string) => {
-      if (sourceValue && updateAllContracts && updateAllMappings) {
-        return compileSourceRemote(sourceValue).then((r) => {
+      if (sourceValue && updateAllContracts && updateAllMappings && compilerSettings) {
+        return compileSourceRemote(sourceValue, compilerSettings).then((r) => {
           if (r.status === 200) {
             const {contracts, ast} = parseCompiledJSON(r.data.result)
             const hash = hashString(sourceValue)
@@ -37,7 +40,7 @@ export const useRemoteCompiler = () => {
       }
       return Promise.reject("Hooks are undefined!");
     },
-    [updateAllMappings, updateAllContracts]
+    [compilerSettings, updateAllMappings, updateAllContracts]
   )
 };
 
@@ -47,6 +50,8 @@ export const useRemoteSymExec = (contract: string) => {
   const sourceHash = useHash()
   const updateAllMappings = useUpdateAllMappings()
   const mappings = useMappings(contract)
+
+  const [symexecSettings, ] = useSymexecSettingsManager()
 
   return useCallback(
     async (source: string) => {
@@ -59,13 +64,13 @@ export const useRemoteSymExec = (contract: string) => {
         console.log("Reconstructed JSON")
         console.log(compiledJSON)
 
-        return symExecSourceRemote(source, compiledJSON).then((r) => {
+        return symExecSourceRemote(source, compiledJSON, symexecSettings).then((r) => {
           if (r.status === 200) {
             console.log(r.data)
   
             const newMappings = {...mappings.mappings}
 
-            addGasMetrics(newMappings, r.data)
+            addSymexecMetrics(newMappings, r.data)
 
             updateAllMappings(contract, newMappings, mappings.filteredLines)
           }
@@ -75,6 +80,6 @@ export const useRemoteSymExec = (contract: string) => {
         })
       }
     },
-    [updateAllMappings, sourceHash, compiledJSON, mappings]
+    [updateAllMappings, symexecSettings, sourceHash, compiledJSON, mappings]
   )
 };

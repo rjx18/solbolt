@@ -9,7 +9,6 @@ import 'codemirror/keymap/sublime';
 import { styled, createTheme, ThemeProvider } from '@mui/system';
 import 'codemirror/theme/neo.css';
 import axios from 'axios';
-import { addGasMetrics, compileSourceRemote, getRandomInt, hashString, parseLegacyEVMMappings } from '../../utils';
 import './Compiler.css';
 
 import Editor from "@monaco-editor/react";
@@ -23,6 +22,7 @@ import { DEFAULT_SOLIDITY_VALUE } from '../../constants';
 import SolidityPane from '../../components/SolidityPane';
 import AssemblyPane from '../../components/AssemblyPane';
 import { isNullOrUndefined } from 'util';
+import SettingsPane from '../../components/SettingsPane';
 
 const CenteredBox = styled(Box)(({ theme }) => ({
   margin: "auto",
@@ -66,7 +66,7 @@ function CompilerPage() {
         </Box>
       </Box> */}
       <AssemblyPane setError={setError} sourceRef={sourceChildRef}/>
-      
+      <SettingsPane />
     </Box>
   </>;
 }

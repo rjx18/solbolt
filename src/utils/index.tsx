@@ -1,4 +1,4 @@
-import { ContractJSON, ContractMappings, EVMMap } from "../types"
+import { CompilerSettings, ContractJSON, ContractMappings, EVMMap, SymexecSettings } from "../types"
 import axios from 'axios'
 import { OUTPUT_FILE_NAME } from "../constants"
 
@@ -114,9 +114,9 @@ export const parseLegacyEVMMappings = (sourceText: string, compiledJSON: any) =>
 const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: {[key: string]: EVMMap}, contractDefinitionSrc: string) => {
   let num_tags = 0
   
-  for (let i = 0; i < code.length; i++) {
+  for (const node of code) {
 
-    const node = code[i]
+    // const node = code[i]
 
     if (node[NAME] === TAG) {
       num_tags++
@@ -171,10 +171,10 @@ const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filter
         pushNewCompiledMap()
       } else {
         const compiledMapLen = codeMappings[currKey].compiledMaps.length - 1
-        const lastCompileMapEndIndex = codeMappings[currKey].compiledMaps[compiledMapLen].startLine
+        const lastCompileMapEndIndex = codeMappings[currKey].compiledMaps[compiledMapLen].endLine
 
-        if (i == lastCompileMapEndIndex) {
-          // the last added line was the one before this, so we can just extend the previous map by one
+        if (filteredLinesArray.length === lastCompileMapEndIndex + 1) {
+          // the last added line was the one before this, so we can just extend the previous map by one\
           codeMappings[currKey].compiledMaps[compiledMapLen].endLine = filteredLinesArray.length
         } else {
           // the last added line was not consecutive anymore, so we need to add a new map
@@ -206,9 +206,11 @@ export const parseCompiledJSON = (compiledJSON: any) => {
   }
 }
 
-export const addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any) => {
+export const addSymexecMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any) => {
   _addGasMetrics(mappings, gasMap.creation)
   _addGasMetrics(mappings, gasMap.runtime)
+
+  _addLoopGasMetrics(mappings, gasMap.loop_gas)
 }
 
 const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) => {
@@ -222,13 +224,26 @@ const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) =
   }
 }
 
-export const isTargetInLineRange = (targetLine: number, targetChar: number, sourceStartLine: number, sourceEndLine: number, sourceStartChar: number = 1, sourceEndChar: number = 1) => {
+const _addLoopGasMetrics = (mappings: {[key: string]: EVMMap}, loopGas: any) => {
+  for (const key in loopGas) {
+    if (key in mappings) {
+      mappings[key].loopGas = {
+        ...loopGas[key]
+      } as {[pc: number]: number}
+    }
+  }
+}
+
+export const isTargetInLineRange = (targetLine: number, targetChar: number, sourceStartLine: number, sourceEndLine: number, sourceStartChar?: number, sourceEndChar?: number) => {
   const isSameLine = sourceStartLine === sourceEndLine
 
   if (!isSameLine && targetLine >= sourceStartLine && targetLine <= sourceEndLine) {
     return true
-  } else if (isSameLine && targetLine === sourceStartLine && targetChar >= sourceStartChar && targetChar <= sourceEndChar) {
-    return true
+  }
+  if (isSameLine && targetLine === sourceStartLine) {
+    if ((sourceStartChar == null || sourceEndChar == null) || targetChar >= sourceStartChar && targetChar <= sourceEndChar) {
+      return true
+    }
   }
   return false
 }
@@ -255,6 +270,13 @@ export const getGasClass = (gasAmount: number) => {
   } else {
     return 'frag-heatmap-9'
   }
+}
+
+export const sortMappingsByLength = (mappings: {[key: string]: EVMMap}) => {
+  const mappingKeysSorted = Object.keys(mappings).map((k) => {return {key: k, length: mappings[k].sourceMap.length}})
+  mappingKeysSorted.sort((firstEl, secondEl) => { return secondEl.length - firstEl.length })
+
+  return mappingKeysSorted
 }
 
 const findContractDefinition = (ast: any) => {
@@ -319,15 +341,21 @@ export function getRandomInt(max: number) {
 
 // REMOTE NETWORK REQUESTS
 
-export const compileSourceRemote = (sourceValue: any) => {
+export const compileSourceRemote = (sourceValue: any, settings: CompilerSettings) => {
   return axios.post('http://127.0.0.1:5000/compile/', {
     content: sourceValue,
+    settings: {
+     ...settings
+    }
   })
 }
 
-export const symExecSourceRemote = (sourceValue: any, compiledJSON: any) => {
+export const symExecSourceRemote = (sourceValue: any, compiledJSON: any, settings: SymexecSettings) => {
   return axios.post('http://127.0.0.1:5000/sym/', {
     content: sourceValue,
-    json: JSON.stringify(compiledJSON)
+    json: JSON.stringify(compiledJSON),
+    settings: {
+      ...settings
+    }
   })
 }
