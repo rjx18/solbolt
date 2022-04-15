@@ -14,7 +14,6 @@ import './Compiler.css';
 import Editor from "@monaco-editor/react";
 import CodePane from '../../components/CodePane';
 import { useMappings } from '../../contexts/Mappings';
-import { useContract, useContractNames, useHash } from '../../contexts/Contracts';
 import { useRemoteCompiler, useRemoteSymExec } from '../../hooks';
 import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations';
 import { HighlightedSource } from '../../types';
@@ -23,6 +22,7 @@ import SolidityPane from '../../components/SolidityPane';
 import AssemblyPane from '../../components/AssemblyPane';
 import { isNullOrUndefined } from 'util';
 import SettingsPane from '../../components/SettingsPane';
+import { useToggleFreezeHoverManager } from '../../contexts/Application';
 
 const CenteredBox = styled(Box)(({ theme }) => ({
   margin: "auto",
@@ -39,6 +39,21 @@ function CompilerPage() {
   const handleErrorClose = () => {
     setError('')
   }
+
+  const [, toggleFreezeHover] = useToggleFreezeHoverManager()
+
+  useEffect(() => {
+    const handleFreeze = (e: any) => {
+      if ((e.metaKey || e.ctrlKey) && e.code === 'KeyQ') {
+        toggleFreezeHover()
+      }
+    };
+    window.addEventListener('keydown', handleFreeze);
+
+    return () => {
+      window.removeEventListener('keydown', handleFreeze);
+    };
+  }, []);
 
 
   return <>

@@ -1,8 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { DEFAULT_SOLIDITY_VALUE } from '../../constants'
-import { useContractNames } from '../../contexts/Contracts'
 import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations'
-import { useMappings } from '../../contexts/Mappings'
+import { useMappings, useMappingsByIndex } from '../../contexts/Mappings'
 import { useRemoteCompiler, useRemoteSymExec } from '../../hooks'
 import { HighlightedSource } from '../../types'
 import CodePane from '../CodePane'
@@ -19,6 +18,13 @@ import DirectionsRunIcon from '@mui/icons-material/DirectionsRun';
 import { grey, red } from '@mui/material/colors'
 import SettingsIcon from '@mui/icons-material/Settings';
 import CircularProgress from '@mui/material/CircularProgress';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { solid } from '@fortawesome/fontawesome-svg-core/import.macro'
+import Tooltip from '@mui/material/Tooltip';
+import { useSettingsTabOpenManager, useToggleFreezeHoverManager, useToggleGasMetricsManager } from '../../contexts/Application'
+import { isEmpty } from '../../utils'
 
 interface AssemblyPaneProps {
     setError: React.Dispatch<React.SetStateAction<string>>
@@ -43,16 +49,17 @@ const BorderBox = styled(Box)(({ theme }) => ({
 function AssemblyPane(props: AssemblyPaneProps) {
     const { setError, sourceRef } = props
 
-    const contractNames = useContractNames()
+    const [contractName, mappings] = useMappingsByIndex(0)
 
-    const contractName = contractNames.length !== 0 ? contractNames[0] : 'UNKNOWN'
-
-    const mappings = useMappings(contractName)
+    console.log(mappings)
 
     const highlightedClass = useHighlightedClass()
     const updateHighlightedClass = useUpdateHiglightedClass()
   
     const remoteSymExec = useRemoteSymExec(contractName)
+
+    const [showGasMetrics, toggleShowGasMetrics] = useToggleGasMetricsManager()
+    const [, updateSettingsPaneOpen] = useSettingsTabOpenManager()
 
     const compiledChildRef = useRef<any>();
 
@@ -71,11 +78,17 @@ function AssemblyPane(props: AssemblyPaneProps) {
             setIsExecuting(false)
           })
         }
-      }
+    }
 
-      const handleCompiledMouseMove = (key: string) => {
+    const handleCompiledMouseMove = (key: string) => {
         updateHighlightedClass(key, HighlightedSource.COMPILE)
-      }
+    }
+
+    const handleOpenSymexecSettings = () => {
+        updateSettingsPaneOpen(1)
+    }
+
+    const hasNoGasMetrics = isEmpty(mappings) || Object.keys(mappings.mappings).length === 0 || mappings.mappings[Object.keys(mappings.mappings)[0]].gasMap == null
 
     return (
         <Box display="flex" width="38%" flexDirection="column">
@@ -88,14 +101,19 @@ function AssemblyPane(props: AssemblyPaneProps) {
                 </Box>
                 <Box>
                     <Grid container spacing={1}>
+                        <Grid item sx={{alignItems: 'center', display: 'flex'}}>
+                            <Tooltip title={hasNoGasMetrics ? "Symbolically execute first for gas metrics" : "Show or hide gas metrics"}>
+                                <FormControlLabel control={<Switch checked={showGasMetrics} onChange={toggleShowGasMetrics} size='small' disabled={hasNoGasMetrics}/>} label={<Box pl={1}><FontAwesomeIcon icon={solid('gas-pump')} style={{color: grey[700]}} /></Box>} />
+                            </Tooltip>
+                        </Grid>
                         <Grid item>
-                            <SquareIconButton>
-                                <SettingsIcon htmlColor={grey[600]}  />
+                            <SquareIconButton onClick={handleOpenSymexecSettings}>
+                                <SettingsIcon htmlColor={grey[600]} />
                             </SquareIconButton>
                         </Grid>
                         <Grid item>
-                            <SquareIconButton disabled={isExecuting}>
-                                {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]} onClick={handleSymExec} /> :
+                            <SquareIconButton disabled={isExecuting} onClick={handleSymExec} >
+                                {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]}/> :
                                 <Box display="flex" alignItems="center" justifyContent="center">
                                     <CircularProgress size={15} style={{color: red[500]}} />
                                 </Box>}
@@ -117,6 +135,7 @@ function AssemblyPane(props: AssemblyPaneProps) {
                     contract={contractName}
                     mappings={mappings.mappings}
                     highlightedClass={highlightedClass}
+                    hasSymExec={mappings.hasSymExec}
                 />
             </BorderBox>
         </Box>

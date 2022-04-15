@@ -48,6 +48,10 @@
 
 
 /* 0 - 5 */
+.frag-heatmap-null {
+  background: rgba(175, 175, 175, 0.1);
+}
+
 .frag-heatmap-0 {
   background: rgba(231, 236, 215, 0.35);
 }
@@ -84,17 +88,17 @@
 
 /* 2000 - 5000 */
 .frag-heatmap-7 {
-  background: rgba(231, 0, 1, 0.35);
+  background: rgba(231, 0, 1, 0.37);
 }
 
 /* 5000 - 10000 */
 .frag-heatmap-8 {
-  background: rgba(207, 0, 0, 0.35);
+  background: rgba(207, 0, 0, 0.4);
 }
 
 /* > 10000 */
 .frag-heatmap-9 {
-  background: rgba(184, 0, 0, 0.35);
+  background: rgba(184, 0, 0, 0.45);
 }
 
 .frag-highlighted {
@@ -105,4 +109,8 @@
   background-color: lightblue;
   width: 5px !important;
   margin-left: 3px;
+}
+
+.myGlyphMarginClass {
+	background: red;
 }

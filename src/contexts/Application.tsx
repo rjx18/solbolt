@@ -4,17 +4,20 @@ import { safeAccess } from '../utils'
 
 const SETTINGS_TAB_OPEN = 'SETTINGS_TAB_OPEN'
 const SHOW_GAS_METRICS = 'SHOW_GAS_METRICS'
+const FREEZE_HOVER = 'FREEZE_HOVER'
 
 export enum UpdateTypes {
   UPDATE_SETTINGS_TAB_OPEN = 'UPDATE_SETTINGS_TAB_OPEN',
   TOGGLE_SHOW_GAS_METRICS = 'TOGGLE_SHOW_GAS_METRICS',
+  TOGGLE_FREEZE_HOVER = 'TOGGLE_FREEZE_HOVER'
 }
 
-export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN} | {type: UpdateTypes.TOGGLE_SHOW_GAS_METRICS}
+export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN} | {type: UpdateTypes.TOGGLE_SHOW_GAS_METRICS} | {type: UpdateTypes.TOGGLE_FREEZE_HOVER}
 
 export interface ApplicationState {
   [SETTINGS_TAB_OPEN]: number;
   [SHOW_GAS_METRICS]: boolean;
+  [FREEZE_HOVER]: boolean;
 }
 
 export interface Payload {
@@ -23,10 +26,12 @@ export interface Payload {
 
 const ApplicationContext = createContext<[ApplicationState | undefined, {
     updateSettingsTabOpen: ((settingsTab: number) => void) | undefined, 
-    toggleShowGasMetrics: (() => void) | undefined
+    toggleShowGasMetrics: (() => void) | undefined,
+    toggleFreezeHover: (() => void) | undefined,
   }]>([undefined, {
     updateSettingsTabOpen: undefined, 
-    toggleShowGasMetrics: undefined
+    toggleShowGasMetrics: undefined,
+    toggleFreezeHover: undefined
   }]);
 
 export function useApplicationContext() {
@@ -47,7 +52,11 @@ function reducer(state: ApplicationState, { type, payload }: { type: UpdateTypes
     }
 
     case UpdateTypes.TOGGLE_SHOW_GAS_METRICS: {
-      return { ...state, [SHOW_GAS_METRICS]: !state[SHOW_GAS_METRICS] }
+      return { ...state, [SHOW_GAS_METRICS]: !state[SHOW_GAS_METRICS] as boolean }
+    }
+
+    case UpdateTypes.TOGGLE_FREEZE_HOVER: {
+      return { ...state, [FREEZE_HOVER]: !state[FREEZE_HOVER] as boolean }
     }
 
     default: {
@@ -59,7 +68,8 @@ function reducer(state: ApplicationState, { type, payload }: { type: UpdateTypes
 export default function Provider({ children }: {children: any}) {
   const [state, dispatch] = useReducer(reducer, {
     [SETTINGS_TAB_OPEN]: 0,
-    [SHOW_GAS_METRICS]: false
+    [SHOW_GAS_METRICS]: true,
+    [FREEZE_HOVER]: false
   })
 
   const updateSettingsTabOpen = useCallback((settingsTab) => {
@@ -70,13 +80,19 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.TOGGLE_SHOW_GAS_METRICS, payload: undefined }  )
   }, [])
 
+  const toggleFreezeHover = useCallback(() => {
+    dispatch({ type: UpdateTypes.TOGGLE_FREEZE_HOVER, payload: undefined }  )
+  }, [])
+
+
 
   return (
     <ApplicationContext.Provider
-      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics }], [
+      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover }], [
         state,
         updateSettingsTabOpen,
-        toggleShowGasMetrics
+        toggleShowGasMetrics,
+        toggleFreezeHover
       ])}
     >
       {children}
@@ -91,7 +107,7 @@ export function useSettingsTabOpenManager() {
 
   const _updateSettingsTabOpen = useCallback(
     settingsTab => {
-      if (settingsTab && updateSettingsTabOpen) {
+      if (settingsTab != null && updateSettingsTabOpen) {
         updateSettingsTabOpen(settingsTab)
       }
     },
@@ -119,5 +135,25 @@ export function useToggleGasMetricsManager() {
 
   return [
     showGasMetrics, _toggleShowGasMetrics, 
+  ] as [boolean, () => void ]
+}
+
+
+export function useToggleFreezeHoverManager() {
+  const [state, { toggleFreezeHover }] = useApplicationContext()
+
+  const freezeHover = safeAccess(state, [FREEZE_HOVER]) as boolean
+
+  const _toggleFreezeHover = useCallback(
+    () => {
+      if (toggleFreezeHover) {
+        toggleFreezeHover()
+      }
+    },
+    [toggleFreezeHover]
+  )
+
+  return [
+    freezeHover, _toggleFreezeHover, 
   ] as [boolean, () => void ]
 }

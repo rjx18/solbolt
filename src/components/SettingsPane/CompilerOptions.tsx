@@ -11,16 +11,21 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import Select, { SelectChangeEvent } from '@mui/material/Select';
-import { COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VIAIR, COMPILER_YUL } from '../../types'
+import { COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL } from '../../types'
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import NumberFormat from 'react-number-format'
 import Accordion from '@mui/material/Accordion';
-import AccordionSummary from '@mui/material/AccordionSummary';
+import { styled } from '@mui/material/styles';
+import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
+import MuiAccordionSummary, {
+  AccordionSummaryProps,
+} from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { minWidth } from '@mui/system'
 import Tooltip from '@mui/material/Tooltip';
+import { SOLC_BINARIES } from '../../constants'
 
 function NumberFormatCustom(props: any) {
   const { inputRef, onChange, ...other } = props;
@@ -55,6 +60,16 @@ function NumberFormatCustom(props: any) {
     />
   );
 }
+
+const AccordionSummary = styled((props: AccordionSummaryProps) => (
+  <MuiAccordionSummary
+      {...props}
+    />
+  ))(({ theme }) => ({
+    '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+      transform: 'none',
+    },
+  }));
 
 function CompilerOptions() {
   const [compilerSettings, updateCompilerSettings] = useCompilerSettingsManager()
@@ -97,12 +112,33 @@ function CompilerOptions() {
     }
   }
 
+  const handleEnableDetails = (event: any, expanded: boolean) => {
+    const newCompilerSettings = {
+      ...compilerSettings,
+      [COMPILER_DETAILS_ENABLED]: expanded
+    }
+
+    updateCompilerSettings(newCompilerSettings)
+  }
+
   return (
     <Box>
       <Typography variant="button" sx={{fontSize: "12pt"}}>Compiler Options</Typography>
       <Box py={3}>
         <FormGroup>
           <FormControl fullWidth>
+            <InputLabel id="compiler-settings-evm-version">Compiler Version</InputLabel>
+            <Select
+              labelId="compiler-settings-compiler-version-select-label"
+              id="compiler-settings-compiler-version-select"
+              value={compilerSettings[COMPILER_VERSION]}
+              label="Compiler Version"
+              onChange={handleValueChange(COMPILER_VERSION)}
+            >
+              {SOLC_BINARIES.map((version) => (<MenuItem value={version}>{version}</MenuItem>))}
+            </Select>
+          </FormControl>
+          <FormControl sx={{mt: 3}} fullWidth>
             <InputLabel id="compiler-settings-evm-version">EVM Version</InputLabel>
             <Select
               labelId="compiler-settings-evm-version-select-label"
@@ -143,13 +179,13 @@ function CompilerOptions() {
           </Box>
           <FormControlLabel sx={{pt: 2}} control={<Switch />} checked={compilerSettings[COMPILER_VIAIR]} onChange={handleCheckedChange(COMPILER_VIAIR)} label="Enable experimental Yul IR pipeline" labelPlacement='end' />
           <Box pt={2}>
-            <Accordion variant='outlined' defaultExpanded={true}>
+            <Accordion variant='outlined' expanded={compilerSettings[COMPILER_DETAILS_ENABLED]} onChange={handleEnableDetails}>
               <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
+                expandIcon={<Switch checked={compilerSettings[COMPILER_DETAILS_ENABLED]}/>}
                 aria-controls="panel1a-content"
                 id="panel1a-header"
               >
-                <Typography>Optimizer Details</Typography>
+                <Typography>Advanced Optimizer Settings</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <FormGroup>

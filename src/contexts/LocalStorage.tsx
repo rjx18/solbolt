@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, useMemo, useCallback, useEffect } from 'react'
-import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VIAIR, COMPILER_YUL, SymexecSettings, SYMEXEC_CALLDEPTH, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../types'
+import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, SymexecSettings, SYMEXEC_CALLDEPTH, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../types'
 
 import { safeAccess } from '../utils'
 
@@ -79,10 +79,12 @@ function reducer(state: LocalStorageState, { type, payload }: { type: UpdateType
 function init() {
   const defaultLocalStorage = {
     [COMPILER_SETTINGS]: {
+      [COMPILER_VERSION]: 'v0.8.13+commit.abaa5c0e',
       [COMPILER_EVM]: 'berlin',
       [COMPILER_RUNS]: 200,
       [COMPILER_ENABLE]: true,
       [COMPILER_VIAIR]: false,
+      [COMPILER_DETAILS_ENABLED]: false,
       [COMPILER_DETAILS]: {
         [COMPILER_PEEPHOLE]: true,
         [COMPILER_INLINER]: true,
@@ -112,7 +114,7 @@ function init() {
         // this is where we could run migration logic
         return { ...defaultLocalStorage}
       } else {
-      return { ...defaultLocalStorage, ...parsed }
+        return { ...defaultLocalStorage, ...parsed }
       }
     } 
     return defaultLocalStorage

@@ -6,7 +6,7 @@ import { OUTPUT_FILE_NAME } from "../constants"
 export function safeAccess(object: any, path: any[]) {
   return object
     ? path.reduce(
-        (accumulator, currentValue) => (accumulator && accumulator[currentValue] ? accumulator[currentValue] : {}),
+        (accumulator, currentValue) => (accumulator != null && accumulator[currentValue] != null ? accumulator[currentValue] : {}),
         object
       )
     : {}
@@ -24,6 +24,20 @@ export const hashString = function(str: string, seed = 0) {
   return 4294967296 * (2097151 & h2) + (h1>>>0);
 };
 
+
+export const isEmpty = (object: any) => {
+  return object == null || (Object.keys(object).length === 0 && Object.getPrototypeOf(object) === Object.prototype)
+}
+
+export const prettifyGas = (gas: number) => {
+  if (gas <= 1000) {
+    return gas.toFixed(1)
+  } else if (gas <= 1000000) {
+    return `${(gas / 1000).toFixed(1)}k`
+  } else {
+    return `${(gas / 1000000).toFixed(1)}M`
+  }
+}
 
 // const EVM_REGEX = /\s+\/\*\s+\"(?<Filename>[\w|\#|\.]+)\":(?<StartOffset>\d+):(?<EndOffset>\d+)\s+(?<Identifier>[\w|{]+)?./
 
@@ -75,7 +89,7 @@ export const parseLegacyEVMMappings = (sourceText: string, compiledJSON: any) =>
 
     const compiledAST = safeAccess(compiledJSON, [JSON_SOURCES, OUTPUT_FILE_NAME, JSON_AST])
 
-    if (compiledEVM !== {} && compiledAST !== {}) {
+    if (compiledEVM !== {} && compiledAST !== {} && compiledEVM[CODE] != null && compiledEVM[DATA] != null) {
       const contractDefinitionSrc = findContractDefinition(compiledAST)
 
       const filteredLinesArray = []
@@ -103,7 +117,8 @@ export const parseLegacyEVMMappings = (sourceText: string, compiledJSON: any) =>
 
       parsedMappings[contractName] = {
         mappings,
-        filteredLines
+        filteredLines,
+        hasSymExec: false
       }
     }
   }
@@ -122,7 +137,7 @@ const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filter
       num_tags++
     }
 
-    if (node[SOURCE] === 0) {
+    if (node[SOURCE] == null || node[SOURCE] === 0) {
       const currKey = `${node[BEGIN]}:${node[END]}`
 
       // dont include generated stuff for the contract
@@ -206,11 +221,13 @@ export const parseCompiledJSON = (compiledJSON: any) => {
   }
 }
 
-export const addSymexecMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any) => {
+export const addSymexecMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any, compiledAST: any) => {
   _addGasMetrics(mappings, gasMap.creation)
   _addGasMetrics(mappings, gasMap.runtime)
 
   _addLoopGasMetrics(mappings, gasMap.loop_gas)
+
+  _addFunctionGasMetrics(mappings, gasMap.function_gas, compiledAST)
 }
 
 const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) => {
@@ -218,7 +235,7 @@ const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) =
     if (key in mappings) {
       mappings[key].gasMap = {
         ...gasMapSection[key],
-        class: getGasClass(gasMapSection[key].meanWcGas)
+        class: getGasClass(gasMapSection[key].meanMaxTotalGas)
       }
     }
   }
@@ -226,12 +243,62 @@ const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) =
 
 const _addLoopGasMetrics = (mappings: {[key: string]: EVMMap}, loopGas: any) => {
   for (const key in loopGas) {
+    console.log('updating loop gas for: ' + key)
     if (key in mappings) {
+      console.log('key is in mappings: ' + key)
       mappings[key].loopGas = {
         ...loopGas[key]
       } as {[pc: number]: number}
     }
   }
+}
+
+const _addFunctionGasMetrics = (mappings: {[key: string]: EVMMap}, fnGas: any, ast: any) => {
+  for (const selector in fnGas) {
+    const truncSelector = selector.substring(2)
+
+    const key = findFunctionDefinitition(truncSelector, ast)
+
+    console.log('key found')
+    console.log(key)
+
+    if (key != null && key in mappings) {
+      mappings[key].functionGas = fnGas[selector]
+      mappings[key].functionSelector = truncSelector
+    }
+  }
+}
+
+const findFunctionDefinitition = (functionSelector: string, ast: any) => {
+
+  const visited = [ast] as any[]
+  const queue = [ast] as any[]
+
+  console.log("finding function definition")
+
+  while (queue.length > 0) {
+    const node = queue.splice(0, 1)[0]
+
+    if (node != null) {
+      if (node.nodeType === "FunctionDefinition" && node.functionSelector === functionSelector) {
+        const src_items = (node.src as string).split(':')
+        const src_start = parseInt(src_items[0])
+        const src_end = src_start + parseInt(src_items[1])
+        return `${src_start}:${src_end}`
+      }
+
+      if (node.nodes) {
+        for (const neighbour of node.nodes) {
+          if (!visited.includes(neighbour)) {
+            visited.push(neighbour)
+            queue.push(neighbour)
+          }
+        }
+      }
+    }
+  }
+
+  return undefined
 }
 
 export const isTargetInLineRange = (targetLine: number, targetChar: number, sourceStartLine: number, sourceEndLine: number, sourceStartChar?: number, sourceEndChar?: number) => {

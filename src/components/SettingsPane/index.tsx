@@ -10,6 +10,8 @@ import InfoIcon from '@mui/icons-material/Info';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import CompilerOptions from './CompilerOptions';
 import SymexecOptions from './SymexecOptions';
+import { useSettingsTabOpenManager } from '../../contexts/Application';
+import Inspector from './Inspector';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -45,30 +47,31 @@ function a11yProps(index: number) {
 }
 
 function SettingsPane() {
-  const [value, setValue] = React.useState(0);
+
+  const [settingsTabOpen, setSettingsTabOpen] = useSettingsTabOpenManager()
 
   const handleChange = (event: React.SyntheticEvent, newValue: number) => {
-    setValue(newValue);
+    setSettingsTabOpen(newValue);
   };
 
   return (
-    <Box width="24%" display="flex">
-      <Box flexGrow={1}>
-        <TabPanel value={value} index={0}>
+    <Box width="24%" display="flex" height="100%">
+      <Box flexGrow={1} height="100%" sx={{overflow: 'auto'}}>
+        <TabPanel value={settingsTabOpen} index={0}>
           <CompilerOptions/>
         </TabPanel>
-        <TabPanel value={value} index={1}>
+        <TabPanel value={settingsTabOpen} index={1}>
           <SymexecOptions />
         </TabPanel>
-        <TabPanel value={value} index={2}>
-          Item Three
+        <TabPanel value={settingsTabOpen} index={2}>
+          <Inspector />
       </TabPanel>
       </Box>
       <Box height="100%">
         <Tabs
           orientation="vertical"
           variant="scrollable"
-          value={value}
+          value={settingsTabOpen}
           onChange={handleChange}
           aria-label="Vertical tabs example"
           sx={{ 

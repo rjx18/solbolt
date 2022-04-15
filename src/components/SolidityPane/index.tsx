@@ -1,8 +1,7 @@
 import React, { useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import { DEFAULT_SOLIDITY_VALUE } from '../../constants'
-import { useContractNames } from '../../contexts/Contracts'
 import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations'
-import { useMappings } from '../../contexts/Mappings'
+import { useMappings, useMappingsByIndex } from '../../contexts/Mappings'
 import { useRemoteCompiler } from '../../hooks'
 import { HighlightedSource } from '../../types'
 import CodePane from '../CodePane'
@@ -13,6 +12,7 @@ import { solid } from '@fortawesome/fontawesome-svg-core/import.macro'
 import { styled, createTheme, ThemeProvider } from '@mui/system';
 
 import Box from '@mui/material/Box'
+import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
@@ -22,6 +22,10 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { green, grey } from '@mui/material/colors'
 import CircularProgress from '@mui/material/CircularProgress';
+import { useSettingsTabOpenManager, useToggleFreezeHoverManager } from '../../contexts/Application'
+import Switch from '@mui/material/Switch';
+import Tooltip from '@mui/material/Tooltip';
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 interface SolidityPaneProps {
     setError: React.Dispatch<React.SetStateAction<string>>
@@ -55,11 +59,8 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         }
       })); 
 
-    const contractNames = useContractNames()
-
-    const contractName = contractNames.length !== 0 ? contractNames[0] : 'UNKNOWN'
-
-    const mappings = useMappings(contractName)
+    const [contractName, mappings] = useMappingsByIndex(0)
+    const [, updateSettingsPaneOpen] = useSettingsTabOpenManager()
 
     const highlightedClass = useHighlightedClass()
     const updateHighlightedClass = useUpdateHiglightedClass()
@@ -69,6 +70,8 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     const sourceChildRef = useRef<any>();
 
     const [isCompiling, setIsCompiling] = useState(false)
+
+    const [freezeHover, toggleFreezeHover] = useToggleFreezeHoverManager()
 
     const handleClick = () => {
         if (sourceChildRef.current && remoteCompile) {
@@ -89,6 +92,10 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         updateHighlightedClass(key, HighlightedSource.SOURCE)
     }
 
+    const handleOpenCompilerSettings = () => {
+        updateSettingsPaneOpen(0)
+    }
+
     return (
         <Box display="flex" width="38%" flexDirection="column">
             <BorderBox p={1} display="flex" justifyContent="center" alignItems="center">
@@ -100,14 +107,30 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
                 </Box>
                 <Box>
                     <Grid container spacing={1}>
+                        <Grid item sx={{alignItems: 'center', display: 'flex'}}>
+                            <Tooltip title={"Freeze mouse hover (Ctrl + Q)"}>
+                                <FormControlLabel 
+                                    control={<Switch checked={freezeHover} onChange={toggleFreezeHover} size='small'/>} 
+                                    label={
+                                        <Box pl={1} display="flex" alignItems="center">
+                                            <FontAwesomeIcon icon={solid('snowflake')} style={{color: grey[700]}} />
+                                            <Paper variant='outlined' sx={{display:"flex", height: "100%", alignItems: "center", justifyContent: "center", marginLeft: "5px", paddingX: "4px"}}>
+                                                <Typography variant="subtitle2" style={{color: grey[600]}}>
+                                                    Ctrl+Q
+                                                </Typography>
+                                            </Paper>
+                                        </Box>
+                                    } />
+                            </Tooltip>
+                        </Grid>
                         <Grid item>
                             <SquareIconButton>
-                                <SettingsIcon htmlColor={grey[600]}  />
+                                <SettingsIcon htmlColor={grey[600]} onClick={handleOpenCompilerSettings} />
                             </SquareIconButton>
                         </Grid>
                         <Grid item>
-                            <SquareIconButton disabled={isCompiling}>
-                                {!isCompiling ? <PlayArrowIcon htmlColor={green[500]} onClick={handleClick} /> :
+                            <SquareIconButton disabled={isCompiling} onClick={handleClick}>
+                                {!isCompiling ? <PlayArrowIcon htmlColor={green[500]} /> :
                                 <Box display="flex" alignItems="center" justifyContent="center">
                                     <CircularProgress size={15} style={{color: green[500]}} />
                                 </Box>}
@@ -127,6 +150,7 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
                     source={HighlightedSource.SOURCE}
                     mappings={mappings.mappings}
                     highlightedClass={highlightedClass}
+                    hasSymExec={mappings.hasSymExec}
                 />
             </BorderBox>
             

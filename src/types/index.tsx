@@ -8,14 +8,13 @@ export interface FragmentMap {
 
 export interface GasMapItem {
   numTx: number;
-  class: number;
-  totalMaxOpcodeGas: number;
-  meanMaxOpcodeGas: number;
-  totalMinOpcodeGas: number;
-  meanMinOpcodeGas: number;
-  totalMemGas: number;
-  meanMemGas: number;
-  meanWcGas: number;
+  class: string;
+  maxOpcodeGas: number;
+  minOpcodeGas: number;
+  memGas: number;
+  maxStorageGas: number;
+  minStorageGas: number;
+  meanMaxTotalGas: number;
 }
 
 export enum HighlightedSource { COMPILE, SOURCE }
@@ -32,6 +31,8 @@ export interface EVMMap {
   loopGas?: {
     [pc: number]: number
   }
+  functionGas?: number
+  functionSelector?: string
 }
 
 export interface EVMJSON {
@@ -51,7 +52,8 @@ export interface ContractMappings {
   mappings: {
     [key: string]: EVMMap;
   }
-  filteredLines: string
+  filteredLines: string;
+  hasSymExec: boolean;
 }
 
 export const COMPILER_PEEPHOLE = 'peephole'
@@ -68,6 +70,8 @@ export const COMPILER_RUNS = 'optimize_runs'
 export const COMPILER_EVM = 'evmVersion'
 export const COMPILER_VIAIR = 'viaIR'
 export const COMPILER_DETAILS = 'details'
+export const COMPILER_VERSION = 'version'
+export const COMPILER_DETAILS_ENABLED = 'details_enabled'
 
 export interface CompilerOptimizerDetails {
   [COMPILER_PEEPHOLE]: boolean
@@ -81,11 +85,13 @@ export interface CompilerOptimizerDetails {
 }
 
 export interface CompilerSettings {
+  [COMPILER_VERSION]: string
   [COMPILER_ENABLE]: boolean
   [COMPILER_RUNS]: number
   [COMPILER_EVM]: string
   [COMPILER_VIAIR]: boolean
   [COMPILER_DETAILS]: CompilerOptimizerDetails
+  [COMPILER_DETAILS_ENABLED]: boolean
 }
 
 export const SYMEXEC_MAXDEPTH = 'max_depth'
