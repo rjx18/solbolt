@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { DEFAULT_SOLIDITY_VALUE } from '../../constants'
 import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations'
-import { useMappings, useMappingsByIndex } from '../../contexts/Mappings'
+import { useMappedContractNames, useMappings, useMappingsByIndex } from '../../contexts/Mappings'
 import { useRemoteCompiler, useRemoteSymExec } from '../../hooks'
 import { HighlightedSource } from '../../types'
 import CodePane from '../CodePane'
@@ -23,8 +23,11 @@ import Switch from '@mui/material/Switch';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { solid } from '@fortawesome/fontawesome-svg-core/import.macro'
 import Tooltip from '@mui/material/Tooltip';
-import { useSettingsTabOpenManager, useToggleFreezeHoverManager, useToggleGasMetricsManager } from '../../contexts/Application'
+import { useAssemblyTabOpenManager, useSettingsTabOpenManager, useToggleFreezeHoverManager, useToggleGasMetricsManager } from '../../contexts/Application'
 import { isEmpty } from '../../utils'
+
+import Tabs from '@mui/material/Tabs';
+import MuiTab from '@mui/material/Tab';
 
 interface AssemblyPaneProps {
     setError: React.Dispatch<React.SetStateAction<string>>
@@ -37,7 +40,44 @@ const BorderBox = styled(Box)(({ theme }) => ({
     borderColor: "#dfdfdf"
   }));
 
-  const SquareIconButton = styled(IconButton)(({ theme }) => ({
+interface StyledTabProps {
+    label: string;
+}
+
+const ASSEMBLY_EMPTY_CONTENT = "Please compile the Solidity code first!"
+
+const Tab = styled((props: StyledTabProps) => <MuiTab {...props} />)(
+    ({ theme }) => ({
+      textTransform: 'none',
+      minWidth: 0,
+      [theme.breakpoints.up('sm')]: {
+        minWidth: 0,
+      },
+      fontWeight: 400,
+    //   marginRight: theme.spacing(1),
+      color: 'rgba(0, 0, 0, 0.85)',
+      fontFamily: [
+        '-apple-system',
+        'BlinkMacSystemFont',
+        '"Segoe UI"',
+        'Roboto',
+        '"Helvetica Neue"',
+        'Arial',
+        'sans-serif',
+        '"Apple Color Emoji"',
+        '"Segoe UI Emoji"',
+        '"Segoe UI Symbol"',
+      ].join(','),
+      '&:hover': {
+        opacity: 1,
+      },
+      '&.Mui-selected': {
+        fontWeight: 600,
+      },
+    }),
+  );
+
+const SquareIconButton = styled(IconButton)(({ theme }) => ({
     borderRadius: 10,
     borderStyle: "solid",
     borderWidth: "1px",
@@ -49,9 +89,12 @@ const BorderBox = styled(Box)(({ theme }) => ({
 function AssemblyPane(props: AssemblyPaneProps) {
     const { setError, sourceRef } = props
 
-    const [contractName, mappings] = useMappingsByIndex(0)
+    // const contractNames = useMappedContractNames()
+    const contractNames = ["ERC20", "IERC721", "EventFactory"]
 
-    console.log(mappings)
+    const [assemblyTab, updateAssemblyTabOpen] = useAssemblyTabOpenManager()
+
+    const [contractName, mappings] = useMappingsByIndex(assemblyTab)
 
     const highlightedClass = useHighlightedClass()
     const updateHighlightedClass = useUpdateHiglightedClass()
@@ -88,46 +131,64 @@ function AssemblyPane(props: AssemblyPaneProps) {
         updateSettingsPaneOpen(1)
     }
 
+    const handleAssemblyTabChange = (event: React.SyntheticEvent, newValue: number) => {
+        updateAssemblyTabOpen(newValue);
+      };
+
     const hasNoGasMetrics = isEmpty(mappings) || Object.keys(mappings.mappings).length === 0 || mappings.mappings[Object.keys(mappings.mappings)[0]].gasMap == null
 
     return (
         <Box display="flex" width="38%" flexDirection="column">
-            <BorderBox p={1} display="flex" justifyContent="center" alignItems="center">
-                <Box flexGrow={1} ml={2} display="flex" alignItems="center">
-                    <MemoryIcon/>
-                    <Typography variant="button" textAlign="center" alignItems="center" justifyContent="center" m={1} fontSize="12pt">
-                        EVM Assembly
-                    </Typography>
+            <BorderBox>
+                <Box p={1} display="flex" justifyContent="center" alignItems="center">
+                    <Box flexGrow={1} ml={2} display="flex" alignItems="center">
+                        <MemoryIcon/>
+                        <Typography variant="button" textAlign="center" alignItems="center" justifyContent="center" m={1} fontSize="12pt">
+                            EVM Assembly
+                        </Typography>
+                    </Box>
+                    <Box>
+                        <Grid container spacing={1}>
+                            <Grid item sx={{alignItems: 'center', display: 'flex'}}>
+                                <Tooltip title={hasNoGasMetrics ? "Symbolically execute first for gas metrics" : "Show or hide gas metrics"}>
+                                    <FormControlLabel control={<Switch checked={showGasMetrics} onChange={toggleShowGasMetrics} size='small' disabled={hasNoGasMetrics}/>} label={<Box pl={1}><FontAwesomeIcon icon={solid('gas-pump')} style={{color: grey[700]}} /></Box>} />
+                                </Tooltip>
+                            </Grid>
+                            <Grid item>
+                                <SquareIconButton onClick={handleOpenSymexecSettings}>
+                                    <SettingsIcon htmlColor={grey[600]} />
+                                </SquareIconButton>
+                            </Grid>
+                            <Grid item>
+                                <SquareIconButton disabled={isExecuting} onClick={handleSymExec} >
+                                    {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]}/> :
+                                    <Box display="flex" alignItems="center" justifyContent="center">
+                                        <CircularProgress size={15} style={{color: red[500]}} />
+                                    </Box>}
+                                </SquareIconButton>
+                            </Grid>
+                        </Grid>
+                    </Box>
                 </Box>
-                <Box>
-                    <Grid container spacing={1}>
-                        <Grid item sx={{alignItems: 'center', display: 'flex'}}>
-                            <Tooltip title={hasNoGasMetrics ? "Symbolically execute first for gas metrics" : "Show or hide gas metrics"}>
-                                <FormControlLabel control={<Switch checked={showGasMetrics} onChange={toggleShowGasMetrics} size='small' disabled={hasNoGasMetrics}/>} label={<Box pl={1}><FontAwesomeIcon icon={solid('gas-pump')} style={{color: grey[700]}} /></Box>} />
-                            </Tooltip>
-                        </Grid>
-                        <Grid item>
-                            <SquareIconButton onClick={handleOpenSymexecSettings}>
-                                <SettingsIcon htmlColor={grey[600]} />
-                            </SquareIconButton>
-                        </Grid>
-                        <Grid item>
-                            <SquareIconButton disabled={isExecuting} onClick={handleSymExec} >
-                                {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]}/> :
-                                <Box display="flex" alignItems="center" justifyContent="center">
-                                    <CircularProgress size={15} style={{color: red[500]}} />
-                                </Box>}
-                            </SquareIconButton>
-                        </Grid>
-                    </Grid>
-                </Box>
-                
+                {contractNames.length > 1 && <Box>
+                    <Tabs
+                        value={assemblyTab}
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        aria-label="scrollable auto tabs example"
+                        onChange={handleAssemblyTabChange}
+                    >
+                        {
+                            contractNames.map((name) => (<Tab label={name} />))
+                        }
+                    </Tabs>
+                </Box>}
             </BorderBox>
             <BorderBox flexGrow={1}>
                 <CodePane
                     ref={compiledChildRef}
                     language="plaintext"
-                    content={mappings.filteredLines || ""}
+                    content={mappings.filteredLines || ASSEMBLY_EMPTY_CONTENT}
                     height="100%"
                     handleMouseHover={handleCompiledMouseMove}
                     readOnly={true}

@@ -5,33 +5,47 @@ import { safeAccess } from '../utils'
 const SETTINGS_TAB_OPEN = 'SETTINGS_TAB_OPEN'
 const SHOW_GAS_METRICS = 'SHOW_GAS_METRICS'
 const FREEZE_HOVER = 'FREEZE_HOVER'
+const ASSEMBLY_TAB_OPEN = 'ASSEMBLY_TAB_OPEN'
+const SOLIDITY_TAB_OPEN = 'SOLIDITY_TAB_OPEN'
 
 export enum UpdateTypes {
   UPDATE_SETTINGS_TAB_OPEN = 'UPDATE_SETTINGS_TAB_OPEN',
   TOGGLE_SHOW_GAS_METRICS = 'TOGGLE_SHOW_GAS_METRICS',
-  TOGGLE_FREEZE_HOVER = 'TOGGLE_FREEZE_HOVER'
+  TOGGLE_FREEZE_HOVER = 'TOGGLE_FREEZE_HOVER',
+  UPDATE_ASSEMBLY_TAB_OPEN = 'UPDATE_ASSEMBLY_TAB_OPEN',
+  UPDATE_SOLIDITY_TAB_OPEN = 'UPDATE_SOLIDITY_TAB_OPEN'
 }
 
-export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN} | {type: UpdateTypes.TOGGLE_SHOW_GAS_METRICS} | {type: UpdateTypes.TOGGLE_FREEZE_HOVER}
+export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN} | 
+          {type: UpdateTypes.TOGGLE_SHOW_GAS_METRICS} | 
+          {type: UpdateTypes.TOGGLE_FREEZE_HOVER} |
+          {type: UpdateTypes.UPDATE_ASSEMBLY_TAB_OPEN} | 
+          {type: UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN}
 
 export interface ApplicationState {
   [SETTINGS_TAB_OPEN]: number;
   [SHOW_GAS_METRICS]: boolean;
   [FREEZE_HOVER]: boolean;
+  [ASSEMBLY_TAB_OPEN]: number;
+  [SOLIDITY_TAB_OPEN]: number;
 }
 
 export interface Payload {
-  settingsTab: number;
+  updatedTab: number;
 }
 
 const ApplicationContext = createContext<[ApplicationState | undefined, {
-    updateSettingsTabOpen: ((settingsTab: number) => void) | undefined, 
+    updateSettingsTabOpen: ((updatedTab: number) => void) | undefined, 
     toggleShowGasMetrics: (() => void) | undefined,
     toggleFreezeHover: (() => void) | undefined,
+    updateAssemblyTabOpen: ((updatedTab: number) => void) | undefined, 
+    updateSolidityTabOpen: ((updatedTab: number) => void) | undefined, 
   }]>([undefined, {
     updateSettingsTabOpen: undefined, 
     toggleShowGasMetrics: undefined,
-    toggleFreezeHover: undefined
+    toggleFreezeHover: undefined,
+    updateAssemblyTabOpen: undefined,
+    updateSolidityTabOpen: undefined
   }]);
 
 export function useApplicationContext() {
@@ -44,10 +58,10 @@ function reducer(state: ApplicationState, { type, payload }: { type: UpdateTypes
       if (!payload) {
         throw Error(`No settings tab included in payload!`)
       }
-      const { settingsTab } = payload
+      const { updatedTab } = payload
       return {
         ...state,
-        [SETTINGS_TAB_OPEN]: settingsTab
+        [SETTINGS_TAB_OPEN]: updatedTab
       }
     }
 
@@ -57,6 +71,28 @@ function reducer(state: ApplicationState, { type, payload }: { type: UpdateTypes
 
     case UpdateTypes.TOGGLE_FREEZE_HOVER: {
       return { ...state, [FREEZE_HOVER]: !state[FREEZE_HOVER] as boolean }
+    }
+
+    case UpdateTypes.UPDATE_ASSEMBLY_TAB_OPEN : {
+      if (!payload) {
+        throw Error(`No assembly tab included in payload!`)
+      }
+      const { updatedTab } = payload
+      return {
+        ...state,
+        [ASSEMBLY_TAB_OPEN]: updatedTab
+      }
+    }
+
+    case UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN : {
+      if (!payload) {
+        throw Error(`No assembly tab included in payload!`)
+      }
+      const { updatedTab } = payload
+      return {
+        ...state,
+        [SOLIDITY_TAB_OPEN]: updatedTab
+      }
     }
 
     default: {
@@ -69,11 +105,13 @@ export default function Provider({ children }: {children: any}) {
   const [state, dispatch] = useReducer(reducer, {
     [SETTINGS_TAB_OPEN]: 0,
     [SHOW_GAS_METRICS]: true,
-    [FREEZE_HOVER]: false
+    [FREEZE_HOVER]: false,
+    [ASSEMBLY_TAB_OPEN]: 0,
+    [SOLIDITY_TAB_OPEN]: 0
   })
 
-  const updateSettingsTabOpen = useCallback((settingsTab) => {
-    dispatch({ type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN, payload: { settingsTab } as Payload })
+  const updateSettingsTabOpen = useCallback((updatedTab) => {
+    dispatch({ type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN, payload: { updatedTab } as Payload })
   }, [])
 
   const toggleShowGasMetrics = useCallback(() => {
@@ -84,15 +122,23 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.TOGGLE_FREEZE_HOVER, payload: undefined }  )
   }, [])
 
+  const updateAssemblyTabOpen = useCallback((updatedTab) => {
+    dispatch({ type: UpdateTypes.UPDATE_ASSEMBLY_TAB_OPEN, payload: { updatedTab } as Payload })
+  }, [])
 
+  const updateSolidityTabOpen = useCallback((updatedTab) => {
+    dispatch({ type: UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN, payload: { updatedTab } as Payload })
+  }, [])
 
   return (
     <ApplicationContext.Provider
-      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover }], [
+      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover, updateAssemblyTabOpen, updateSolidityTabOpen }], [
         state,
         updateSettingsTabOpen,
         toggleShowGasMetrics,
-        toggleFreezeHover
+        toggleFreezeHover,
+        updateAssemblyTabOpen,
+        updateSolidityTabOpen
       ])}
     >
       {children}
@@ -156,4 +202,42 @@ export function useToggleFreezeHoverManager() {
   return [
     freezeHover, _toggleFreezeHover, 
   ] as [boolean, () => void ]
+}
+
+export function useAssemblyTabOpenManager() {
+  const [state, { updateAssemblyTabOpen }] = useApplicationContext()
+
+  const assemblyTabOpen = safeAccess(state, [ASSEMBLY_TAB_OPEN]) as number
+
+  const _updateAssemblyTabOpen = useCallback(
+    assemblyTab => {
+      if (assemblyTab != null && updateAssemblyTabOpen) {
+        updateAssemblyTabOpen(assemblyTab)
+      }
+    },
+    [updateAssemblyTabOpen]
+  )
+
+  return [
+    assemblyTabOpen, _updateAssemblyTabOpen, 
+  ] as [number, (assemblyTab: number) => void ]
+}
+
+export function useSolidityTabOpenManager() {
+  const [state, { updateSolidityTabOpen }] = useApplicationContext()
+
+  const solidityTabOpen = safeAccess(state, [SOLIDITY_TAB_OPEN]) as number
+
+  const _updateSolidityTabOpen = useCallback(
+    solidityTab => {
+      if (solidityTab != null && updateSolidityTabOpen) {
+        updateSolidityTabOpen(solidityTab)
+      }
+    },
+    [updateSolidityTabOpen]
+  )
+
+  return [
+    solidityTabOpen, _updateSolidityTabOpen, 
+  ] as [number, (solidityTab: number) => void ]
 }
