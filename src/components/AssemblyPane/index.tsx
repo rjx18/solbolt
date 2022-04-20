@@ -3,7 +3,7 @@ import { DEFAULT_SOLIDITY_VALUE } from '../../constants'
 import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations'
 import { useMappedContractNames, useMappings, useMappingsByIndex } from '../../contexts/Mappings'
 import { useRemoteCompiler, useRemoteSymExec } from '../../hooks'
-import { HighlightedSource } from '../../types'
+import { EVMSource, HighlightedSource, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE } from '../../types'
 import CodePane from '../CodePane'
 
 import { styled, createTheme, ThemeProvider } from '@mui/system';
@@ -23,14 +23,15 @@ import Switch from '@mui/material/Switch';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { solid } from '@fortawesome/fontawesome-svg-core/import.macro'
 import Tooltip from '@mui/material/Tooltip';
-import { useAssemblyTabOpenManager, useSettingsTabOpenManager, useToggleFreezeHoverManager, useToggleGasMetricsManager } from '../../contexts/Application'
+import { useAssemblyTabOpenManager, useSettingsTabOpenManager, useSolidityTabOpenManager, useToggleFreezeHoverManager, useToggleGasMetricsManager } from '../../contexts/Application'
 import { isEmpty } from '../../utils'
 
 import Tabs from '@mui/material/Tabs';
 import MuiTab from '@mui/material/Tab';
+import { useSourceManager } from '../../contexts/Sources'
 
 interface AssemblyPaneProps {
-    setError: React.Dispatch<React.SetStateAction<string>>
+    setError: (_error: string) => void
     sourceRef: any
 }
 
@@ -89,8 +90,8 @@ const SquareIconButton = styled(IconButton)(({ theme }) => ({
 function AssemblyPane(props: AssemblyPaneProps) {
     const { setError, sourceRef } = props
 
-    // const contractNames = useMappedContractNames()
-    const contractNames = ["ERC20", "IERC721", "EventFactory"]
+    const contractNames = useMappedContractNames()
+    // const contractNames = ["ERC20", "IERC721", "EventFactory"]
 
     const [assemblyTab, updateAssemblyTabOpen] = useAssemblyTabOpenManager()
 
@@ -108,13 +109,26 @@ function AssemblyPane(props: AssemblyPaneProps) {
 
     const [isExecuting, setIsExecuting] = useState(false)
 
+    const [sources, ] = useSourceManager()
+
+    const [solidityTab, updateSolidityTabOpen] = useSolidityTabOpenManager()
+
     const handleSymExec = () => {
         if (sourceRef.current && remoteSymExec) {
           setIsExecuting(true)
 
-          const sourceValue = sourceRef.current.getSourceValue()
-    
-          remoteSymExec(sourceValue).catch((r: Error) => {
+          let compileSources = {} as {[index: number]: EVMSource}
+        
+          for (const index in sources) {
+              compileSources[index] = {
+                  name: sources[index][SOURCE_FILENAME],
+                  sourceText: sources[index][SOURCE_LAST_SAVED_VALUE]
+              }
+          }
+
+          compileSources[solidityTab].sourceText = sourceRef.current.getSourceValue()
+
+          remoteSymExec(compileSources).catch((r: Error) => {
             console.log(r)
             setError(r.message)
           }).finally(() => {
@@ -123,7 +137,10 @@ function AssemblyPane(props: AssemblyPaneProps) {
         }
     }
 
-    const handleCompiledMouseMove = (key: string) => {
+    const handleCompiledMouseMove = (key: string, source: number) => {
+        if (source !== solidityTab) {
+            updateSolidityTabOpen(source)
+        }
         updateHighlightedClass(key, HighlightedSource.COMPILE)
     }
 
@@ -170,7 +187,7 @@ function AssemblyPane(props: AssemblyPaneProps) {
                         </Grid>
                     </Box>
                 </Box>
-                {contractNames.length > 1 && <Box>
+                <Box>
                     <Tabs
                         value={assemblyTab}
                         variant="scrollable"
@@ -179,16 +196,16 @@ function AssemblyPane(props: AssemblyPaneProps) {
                         onChange={handleAssemblyTabChange}
                     >
                         {
-                            contractNames.map((name) => (<Tab label={name} />))
+                            contractNames.length > 0 ? contractNames.map((name) => (<Tab label={name} />)) : <Tab label="Empty contract" />
                         }
                     </Tabs>
-                </Box>}
+                </Box>
             </BorderBox>
             <BorderBox flexGrow={1}>
                 <CodePane
                     ref={compiledChildRef}
                     language="plaintext"
-                    content={mappings.filteredLines || ASSEMBLY_EMPTY_CONTENT}
+                    defaultContent={mappings.filteredLines || ASSEMBLY_EMPTY_CONTENT}
                     height="100%"
                     handleMouseHover={handleCompiledMouseMove}
                     readOnly={true}

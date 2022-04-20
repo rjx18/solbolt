@@ -4,6 +4,7 @@ export interface FragmentMap {
   endLine: number;
   endChar: number;
   length: number;
+  source: number;
 }
 
 export interface GasMapItem {
@@ -46,6 +47,7 @@ export interface ContractJSON {
   ['evm']: EVMJSON
   ['ir']: string
   ['metadata']: string
+  ['sourceIndex']: number
 }
 
 export interface ContractMappings {
@@ -99,6 +101,8 @@ export const SYMEXEC_CALLDEPTH = 'call_depth_limit'
 export const SYMEXEC_STRATEGY = 'strategy'
 export const SYMEXEC_LOOPBOUND = 'loop_bound'
 export const SYMEXEC_TX = 'transaction_count'
+export const SYMEXEC_ENABLE_ONCHAIN = 'enable_onchain'
+export const SYMEXEC_ONCHAIN_ADDRESS = 'onchain_address'
 
 export interface SymexecSettings {
   [SYMEXEC_MAXDEPTH]: number
@@ -106,6 +110,25 @@ export interface SymexecSettings {
   [SYMEXEC_STRATEGY]: string
   [SYMEXEC_LOOPBOUND]: number
   [SYMEXEC_TX]: number
+  [SYMEXEC_ENABLE_ONCHAIN]: boolean
+  [SYMEXEC_ONCHAIN_ADDRESS]: string
+}
+
+export const SOURCE_MODEL = "SOURCE_MODEL"
+export const SOURCE_VIEW_STATE = "SOURCE_VIEW_STATE"
+export const SOURCE_FILENAME = "SOURCE_FILENAME"
+export const SOURCE_LAST_SAVED_VALUE = "SOURCE_LAST_SAVED_VALUE"
+
+export interface Source {
+  [SOURCE_FILENAME]: string
+  [SOURCE_MODEL]: any
+  [SOURCE_VIEW_STATE]: any
+  [SOURCE_LAST_SAVED_VALUE]: string
+}
+
+export interface EVMSource {
+  name: string;
+  sourceText: string;
 }
 
 // export interface ContractData {

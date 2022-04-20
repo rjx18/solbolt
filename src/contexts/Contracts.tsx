@@ -20,29 +20,42 @@ export type ContractsUpdateAction = {type: UpdateTypes.UPDATE_CONTRACT} | {type:
 
 export interface ContractsState {
   [CONTRACTS]: {
-    [name: string]: ContractJSON
+    [fileName: string]: {
+      [contractName: string]: ContractJSON
+    }
+  },
+  [AST]: {
+    [name: string]: any
+  },
+  [HASH]: {
+    [name: string]: number
   }
-  [AST]: any,
-  [HASH]: number
 }
 
 export interface Payload {
+  filename: string;
   name: string;
-  contract: ContractJSON
+  contract: ContractJSON;
 }
 
 export interface Payload {
   contracts: {
-    [name: string]: ContractJSON
-  };
-  ast: any,
-  hash: number
+    [fileName: string]: {
+      [contractName: string]: ContractJSON
+    }
+  },
+  ast: {
+    [name: string]: any
+  },
+  hash: {
+    [name: string]: number
+  }
 }
 
 const ContractsContext = createContext<
   [ContractsState | undefined, {
-    updateContract: ((name: string, contract: ContractJSON) => void) | undefined, 
-    updateAllContracts: ((contracts: {[name: string]: ContractJSON}, ast: any, hash: number) => void) | undefined
+    updateContract: ((filename: string, name: string, contract: ContractJSON) => void) | undefined, 
+    updateAllContracts: ((contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}, hash: {[name: string]: number}) => void) | undefined
   }]>([undefined, {updateContract: undefined, updateAllContracts: undefined}]);
 
 export function useContractsContext() {
@@ -55,12 +68,15 @@ function reducer(state: ContractsState, { type, payload }: { type: UpdateTypes, 
       if (!payload) {
         throw Error(`Payload is undefined or null!`)
       }
-      const { name, contract } = payload
+      const { filename, name, contract } = payload
       return {
         ...state,
         [CONTRACTS]: {
           ...(safeAccess(state, [CONTRACTS]) || {}),
-          [name]: contract
+          [filename]: {
+            ...(safeAccess(state, [CONTRACTS, filename]) || {}),
+            [name]: contract
+          }
         }
       }
     }
@@ -91,12 +107,12 @@ function reducer(state: ContractsState, { type, payload }: { type: UpdateTypes, 
 export default function Provider({ children }: {children: any}) {
   const [state, dispatch] = useReducer(reducer, {
     [CONTRACTS]: {},
-    [AST]: undefined,
-    [HASH]: 0
+    [AST]: {},
+    [HASH]: {}
   } as ContractsState)
 
-  const updateContract = useCallback((name, contract,) => {
-    dispatch({ type: UpdateTypes.UPDATE_CONTRACT, payload: { name, contract } as Payload })
+  const updateContract = useCallback((filename, name, contract) => {
+    dispatch({ type: UpdateTypes.UPDATE_CONTRACT, payload: { filename, name, contract } as Payload })
   }, [])
 
   const updateAllContracts = useCallback((contracts, ast, hash) => {
@@ -121,13 +137,13 @@ export function useUpdateContract() {
   const [, { updateContract }] = useContractsContext()
 
   return useCallback(
-      (name: string, contract: ContractJSON) => {
+      (filename: string, name: string, contract: ContractJSON) => {
         if (
           updateContract &&
           contract &&
           name
         ) {
-          updateContract(name, contract)
+          updateContract(filename, name, contract)
         }
       },
       [updateContract]
@@ -139,7 +155,7 @@ export function useUpdateAllContracts() {
   const [, { updateAllContracts }] = useContractsContext()
 
   return useCallback(
-      (contracts: {[name: string]: ContractJSON}, ast: any, hash: number) => {
+      (contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}, hash: {[name: string]: number}) => {
         console.log("updating all contracts")
         console.log(contracts)
         console.log(ast)
@@ -161,13 +177,37 @@ export function useUpdateAllContracts() {
 export function useContractNames() {
   const [state] = useContractsContext();
 
-  return Object.keys(safeAccess(state, [CONTRACTS]))
+  let contractNames = [] as string[]
+
+  for (const filename in safeAccess(state, [CONTRACTS])) {
+    contractNames.push(...Object.keys(safeAccess(state, [CONTRACTS, filename])))
+  }
+
+  return contractNames
 }
 
 export function useContract(contract: string) {
   const [state] = useContractsContext();
 
-  return safeAccess(state, [CONTRACTS, contract]) as ContractJSON
+  for (const filename in safeAccess(state, [CONTRACTS])) {
+    if (Object.keys(safeAccess(state, [CONTRACTS, filename])).includes(contract)) {
+      return safeAccess(state, [CONTRACTS, filename, contract]) as ContractJSON
+    }
+  }
+
+  return {} as ContractJSON
+}
+
+export function useFilenameOfContract(contract: string) {
+  const [state] = useContractsContext();
+
+  for (const filename in safeAccess(state, [CONTRACTS])) {
+    if (Object.keys(safeAccess(state, [CONTRACTS, filename])).includes(contract)) {
+      return filename
+    }
+  }
+
+  return undefined
 }
 
 export function useAST() {
@@ -188,18 +228,11 @@ export function useCompiledJSON() {
 
   return {
     [CONTRACTS]: {
-      [OUTPUT_FILE_NAME]: {
-        ...safeAccess(state, [CONTRACTS])
-      }
+      ...safeAccess(state, [CONTRACTS])
     },
     [ERRORS]: [],
     [SOURCES]: {
-      [OUTPUT_FILE_NAME]: {
-        [AST]: {
-          ...safeAccess(state, [AST])
-        },
-        [ID]: 0
-      }
+      ...safeAccess(state, [AST])
     }
   }
 }

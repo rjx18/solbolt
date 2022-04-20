@@ -1,7 +1,7 @@
-import { CompilerSettings, ContractJSON, ContractMappings, EVMMap, SymexecSettings } from "../types"
+import { CompilerSettings, ContractJSON, ContractMappings, EVMMap, EVMSource, SymexecSettings, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_ONCHAIN_ADDRESS } from "../types"
 import axios from 'axios'
-import { OUTPUT_FILE_NAME } from "../constants"
-
+import { ETHERSCAN_API_ENDPOINT, ETHERSCAN_API_KEY, OUTPUT_FILE_NAME } from "../constants"
+import { keccak256 } from 'js-sha3'
 
 export function safeAccess(object: any, path: any[]) {
   return object
@@ -39,6 +39,36 @@ export const prettifyGas = (gas: number) => {
   }
 }
 
+export const isAddress = (address: string | undefined) => {
+  if (address === "" || address == null) {
+    return false
+  }
+
+  if (!/^(0x)?[0-9a-f]{40}$/i.test(address)) {
+      // check if it has the basic requirements of an address
+      return false;
+  } else if (/^(0x)?[0-9a-f]{40}$/.test(address) || /^(0x)?[0-9A-F]{40}$/.test(address)) {
+      // If it's all small caps or all all caps, return true
+      return true;
+  } else {
+      // Otherwise check each case
+      return isChecksumAddress(address);
+  }
+};
+
+export const isChecksumAddress = (address: string) => {
+  // Check each case
+  address = address.replace('0x','');
+  var addressHash = keccak256(address.toLowerCase());
+  for (var i = 0; i < 40; i++ ) {
+      // the nth letter should be uppercase if the nth digit of casemap is 1
+      if ((parseInt(addressHash[i], 16) > 7 && address[i].toUpperCase() !== address[i]) || (parseInt(addressHash[i], 16) <= 7 && address[i].toLowerCase() !== address[i])) {
+          return false;
+      }
+  }
+  return true;
+};
+
 // const EVM_REGEX = /\s+\/\*\s+\"(?<Filename>[\w|\#|\.]+)\":(?<StartOffset>\d+):(?<EndOffset>\d+)\s+(?<Identifier>[\w|{]+)?./
 
 const BEGIN = "begin"
@@ -75,50 +105,73 @@ interface LegacyEVM {
   }
 }
 
-export const parseLegacyEVMMappings = (sourceText: string, compiledJSON: any) => {
+export const parseLegacyEVMMappings = (sources: {[index: number]: EVMSource}, compiledJSON: any) => {
   // outputs a mapping of classes to lines
   
-  const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME]))
-
   let parsedMappings = {} as {
     [contract: string]: ContractMappings;
   }
 
-  for (const contractName of contractNames) {
-    const compiledEVM = safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME, contractName, JSON_EVM, JSON_LEGACY])
+  let sourceNameToIndex = {} as {[name: string]: number}
 
-    const compiledAST = safeAccess(compiledJSON, [JSON_SOURCES, OUTPUT_FILE_NAME, JSON_AST])
+  for (const index in sources) {
+    if (sources.hasOwnProperty(index)) {
+      sourceNameToIndex[sources[index].name] = parseInt(index)
+    }
+  }
 
-    if (compiledEVM !== {} && compiledAST !== {} && compiledEVM[CODE] != null && compiledEVM[DATA] != null) {
-      const contractDefinitionSrc = findContractDefinition(compiledAST)
+  // get filenames with solidity tab index
+  // find a mapping of solidity tab index to ast index
+  // ast id: validkeys, solidity id
+  // then, if no source present, find within the set of valid keys of all mappings to get a key with the source id
+  // 
 
-      const filteredLinesArray = []
+  const astKeyMap = getASTKeys(safeAccess(compiledJSON, [JSON_SOURCES]), sourceNameToIndex)
 
-      // let currMap = undefined as undefined | {
-      //   sourceMap: FragmentMap,
-      //   compiledMaps: FragmentMap[]
-      // }
+  console.log(astKeyMap)
 
-      const mappings = {} as {[key: string]: EVMMap}
+  for (const index in sources) {
+    const outputName = sources[index].name
 
-      filteredLinesArray.push("CONSTRUCTOR:")
+    const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, outputName]))
 
-      parseLegacyEVMSection(sourceText, compiledEVM[CODE], filteredLinesArray, mappings, contractDefinitionSrc)
-
-      console.log(`Num instructions in constructor: ${compiledEVM[CODE].length}`)
-
-      filteredLinesArray.push("SUBROUTINES:")
-
-      parseLegacyEVMSection(sourceText, compiledEVM[DATA]["0"][CODE], filteredLinesArray, mappings, contractDefinitionSrc)
-
-      console.log(`Num instructions in sub: ${compiledEVM[DATA]["0"][CODE].length}`)
-
-      const filteredLines = filteredLinesArray.join('\n')
-
-      parsedMappings[contractName] = {
-        mappings,
-        filteredLines,
-        hasSymExec: false
+    for (const contractName of contractNames) {
+      const compiledEVM = safeAccess(compiledJSON, [JSON_CONTRACTS, outputName, contractName, JSON_EVM, JSON_LEGACY])
+  
+      if (compiledEVM !== {} && compiledEVM[CODE] != null && compiledEVM[DATA] != null) {
+        // const validKeys = findValidKeys(compiledAST)
+  
+        const filteredLinesArray = []
+  
+        // let currMap = undefined as undefined | {
+        //   sourceMap: FragmentMap,
+        //   compiledMaps: FragmentMap[]
+        // }
+  
+        const mappings = {} as {[key: string]: EVMMap}
+  
+        filteredLinesArray.push("CONSTRUCTOR:")
+  
+        const hasCreationCode = parseLegacyEVMSection(sources, compiledEVM[CODE], filteredLinesArray, mappings, astKeyMap)
+  
+        console.log(`Num instructions in constructor: ${compiledEVM[CODE].length}`)
+  
+        filteredLinesArray.push("SUBROUTINES:")
+  
+        const hasRuntimeCode = parseLegacyEVMSection(sources, compiledEVM[DATA]["0"][CODE], filteredLinesArray, mappings, astKeyMap)
+  
+        console.log(`Num instructions in sub: ${compiledEVM[DATA]["0"][CODE].length}`)
+  
+        const filteredLines = filteredLinesArray.join('\n')
+  
+        // dont push if there is no code
+        if (hasCreationCode || hasRuntimeCode) {
+          parsedMappings[contractName] = {
+            mappings,
+            filteredLines,
+            hasSymExec: false
+          }
+        }
       }
     }
   }
@@ -126,8 +179,28 @@ export const parseLegacyEVMMappings = (sourceText: string, compiledJSON: any) =>
   return parsedMappings
 }
 
-const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: {[key: string]: EVMMap}, contractDefinitionSrc: string) => {
+const _getCurrKey = (key: string, nodeSource: number | undefined, astKeyMap: {[index: number]: ASTKey}) => {
+  // if node source is given, use that
+  if (nodeSource != null && astKeyMap[nodeSource] != null) {
+    if (astKeyMap[nodeSource].validKeys.has(key)) {
+      return [`${key}:${nodeSource}`, astKeyMap[nodeSource].solidityIndex]
+    } else {
+      return [undefined, undefined]
+    }
+  }
+
+  for (const astKey in astKeyMap) {
+    if (astKeyMap[astKey].validKeys.has(key)) {
+      return [`${key}:${astKey}`, astKeyMap[astKey].solidityIndex]
+    }
+  }
+
+  return [undefined, undefined]
+}
+
+const parseLegacyEVMSection = (sources: {[index: number]: EVMSource}, code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: {[key: string]: EVMMap}, astKeyMap: {[index: number]: ASTKey}) => {
   let num_tags = 0
+  let hasCode = false
   
   for (const node of code) {
 
@@ -137,83 +210,102 @@ const parseLegacyEVMSection = (sourceText: string, code: LegacyEVMNode[], filter
       num_tags++
     }
 
-    if (node[SOURCE] == null || node[SOURCE] === 0) {
-      const currKey = `${node[BEGIN]}:${node[END]}`
+    const [currKey, soliditySource] = _getCurrKey(`${node[BEGIN]}:${node[END]}`, node[SOURCE], astKeyMap)
 
-      // dont include generated stuff for the contract
-      if (currKey === contractDefinitionSrc) {
-        continue
+    // dont include generated stuff for the contract
+    if (currKey == null) {
+      continue
+    }
+
+    const sourceText = sources[soliditySource as number].sourceText
+
+    const [startLine, startChar] = getLineCharFromOffset(sourceText, node[BEGIN])
+    const [endLine, endChar] = getLineCharFromOffset(sourceText, node[END])
+
+    // function for pushing a new compile map
+    const pushNewCompiledMap = () => {
+      hasCode = true
+
+      const compiledMap = {
+        startLine: filteredLinesArray.length,
+        startChar: 1,
+        endLine: filteredLinesArray.length,
+        endChar: 1,
+        length: node[END] - node[BEGIN], // when marking, start with greatest lengths first
+        source: soliditySource as number
       }
 
-      const [startLine, startChar] = getLineCharFromOffset(sourceText, node[BEGIN])
-      const [endLine, endChar] = getLineCharFromOffset(sourceText, node[END])
+      codeMappings[currKey].compiledMaps.push(compiledMap)
+    }
 
-      // function for pushing a new compile map
-      const pushNewCompiledMap = () => {
-        const compiledMap = {
-          startLine: filteredLinesArray.length,
-          startChar: 1,
-          endLine: filteredLinesArray.length,
-          endChar: 1,
-          length: node[END] - node[BEGIN], // when marking, start with greatest lengths first
-        }
-
-        codeMappings[currKey].compiledMaps.push(compiledMap)
+    // if there was no such key before, push a new one including the source map
+    if (!(currKey in codeMappings)) {
+      const sourceMap = {
+        startLine: startLine,
+        startChar: startChar,
+        endLine: endLine,
+        endChar: endChar,
+        length: node[END] - node[BEGIN], // when marking, start with greatest lengths first
+        source: soliditySource as number
       }
 
-      // if there was no such key before, push a new one including the source map
-      if (!(currKey in codeMappings)) {
-        const sourceMap = {
-          startLine: startLine,
-          startChar: startChar,
-          endLine: endLine,
-          endChar: endChar,
-          length: node[END] - node[BEGIN], // when marking, start with greatest lengths first
-        }
-
-        codeMappings[currKey] = {
-          sourceMap: sourceMap,
-          compiledMaps: []
-        }
-      }
-
-      // add line to filteredLinesArray
-      const parsedLine = prettifyLine(node)
-      filteredLinesArray.push(parsedLine)
-
-      if (codeMappings[currKey].compiledMaps.length === 0) {
-        // first compiledMap, just add a new map sequence
-        pushNewCompiledMap()
-      } else {
-        const compiledMapLen = codeMappings[currKey].compiledMaps.length - 1
-        const lastCompileMapEndIndex = codeMappings[currKey].compiledMaps[compiledMapLen].endLine
-
-        if (filteredLinesArray.length === lastCompileMapEndIndex + 1) {
-          // the last added line was the one before this, so we can just extend the previous map by one\
-          codeMappings[currKey].compiledMaps[compiledMapLen].endLine = filteredLinesArray.length
-        } else {
-          // the last added line was not consecutive anymore, so we need to add a new map
-          pushNewCompiledMap()
-        }
+      codeMappings[currKey] = {
+        sourceMap: sourceMap,
+        compiledMaps: []
       }
     }
+
+    // add line to filteredLinesArray
+    const parsedLine = prettifyLine(node)
+    filteredLinesArray.push(parsedLine)
+
+    if (codeMappings[currKey].compiledMaps.length === 0) {
+      // first compiledMap, just add a new map sequence
+      pushNewCompiledMap()
+    } else {
+      const compiledMapLen = codeMappings[currKey].compiledMaps.length - 1
+      const lastCompileMapEndIndex = codeMappings[currKey].compiledMaps[compiledMapLen].endLine
+
+      if (filteredLinesArray.length === lastCompileMapEndIndex + 1) {
+        // the last added line was the one before this, so we can just extend the previous map by one\
+        codeMappings[currKey].compiledMaps[compiledMapLen].endLine = filteredLinesArray.length
+      } else {
+        // the last added line was not consecutive anymore, so we need to add a new map
+        pushNewCompiledMap()
+      }
+    }
+    // }
   }
 
-  console.log(`Num tags: ${num_tags}`)
+  return hasCode
 }
 
 export const parseCompiledJSON = (compiledJSON: any) => {
-  const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME]))
+  const sourceFilenames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS]))
 
   let contractJSON = {} as {
-    [contract: string]: ContractJSON
+    [name: string]: {
+      [contract: string]: ContractJSON
+    }
   }
 
-  for (const contractName of contractNames) {
-    contractJSON[contractName] = safeAccess(compiledJSON, [JSON_CONTRACTS, OUTPUT_FILE_NAME, contractName]) as ContractJSON
+  let contractAST = {} as {
+    [name: string]: any
   }
 
-  let contractAST = safeAccess(compiledJSON, [JSON_SOURCES, OUTPUT_FILE_NAME, JSON_AST]) as any
+  for (const sourceFile of sourceFilenames) {
+    const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, sourceFile]))
+    contractJSON[sourceFile] = {} as {
+        [contract: string]: ContractJSON
+    }
+
+    for (const contractName of contractNames) {
+      contractJSON[sourceFile][contractName] = safeAccess(compiledJSON, [JSON_CONTRACTS, sourceFile, contractName]) as ContractJSON
+    }
+
+    contractAST[sourceFile] = safeAccess(compiledJSON, [JSON_SOURCES, sourceFile])
+  }
+
 
   return {
     contracts: contractJSON,
@@ -254,44 +346,67 @@ const _addLoopGasMetrics = (mappings: {[key: string]: EVMMap}, loopGas: any) => 
 }
 
 const _addFunctionGasMetrics = (mappings: {[key: string]: EVMMap}, fnGas: any, ast: any) => {
+  const mappingKeys = Object.keys(mappings)
+  
   for (const selector in fnGas) {
-    const truncSelector = selector.substring(2)
+    const splitSelector = selector.split(':')
+    const truncSelector = splitSelector[0].substring(2)
+    const functionName = splitSelector[1]
 
-    const key = findFunctionDefinitition(truncSelector, ast)
+    console.log("Found key for fn")
+    console.log(truncSelector)
+    console.log(functionName)
 
-    console.log('key found')
+    const key = findFunctionDefinitition(truncSelector, functionName, mappingKeys, ast)
+
     console.log(key)
 
-    if (key != null && key in mappings) {
+    if (key != null) {
       mappings[key].functionGas = fnGas[selector]
       mappings[key].functionSelector = truncSelector
     }
   }
 }
 
-const findFunctionDefinitition = (functionSelector: string, ast: any) => {
+const FN_REGEX = /(\w+)\(.*\)/
 
-  const visited = [ast] as any[]
-  const queue = [ast] as any[]
+const findFunctionDefinitition = (functionSelector: string, functionName: string, mappingKeys: string[], ast: any) => {
+  const regexMatch = functionName.match(FN_REGEX);
 
-  console.log("finding function definition")
+  let fnName = ""
 
-  while (queue.length > 0) {
-    const node = queue.splice(0, 1)[0]
+  if (regexMatch != null) {
+    fnName = regexMatch[1]
+  }
 
-    if (node != null) {
-      if (node.nodeType === "FunctionDefinition" && node.functionSelector === functionSelector) {
-        const src_items = (node.src as string).split(':')
-        const src_start = parseInt(src_items[0])
-        const src_end = src_start + parseInt(src_items[1])
-        return `${src_start}:${src_end}`
-      }
+  for (const contractFile in ast) {
+    const contractAST = safeAccess(ast, [contractFile, 'ast'])
 
-      if (node.nodes) {
-        for (const neighbour of node.nodes) {
-          if (!visited.includes(neighbour)) {
-            visited.push(neighbour)
-            queue.push(neighbour)
+    const visited = [contractAST] as any[]
+    const queue = [contractAST] as any[]
+
+    while (queue.length > 0) {
+      const node = queue.splice(0, 1)[0]
+
+      if (node != null) {
+        if (node.nodeType === "FunctionDefinition" && (node.functionSelector === functionSelector || node.name === fnName)) {
+          const src_items = (node.src as string).split(':')
+          const src_start = parseInt(src_items[0])
+          const src_end = src_start + parseInt(src_items[1])
+          const src_file = parseInt(src_items[2])
+          
+          const mappingKey = `${src_start}:${src_end}:${src_file}`
+          if (mappingKeys.includes(mappingKey)) {
+            return mappingKey
+          }
+        }
+
+        if (node.nodes) {
+          for (const neighbour of node.nodes) {
+            if (!visited.includes(neighbour)) {
+              visited.push(neighbour)
+              queue.push(neighbour)
+            }
           }
         }
       }
@@ -346,32 +461,74 @@ export const sortMappingsByLength = (mappings: {[key: string]: EVMMap}) => {
   return mappingKeysSorted
 }
 
-const findContractDefinition = (ast: any) => {
+// statements, declarations, initialValue, expression, leftExpression, rightExpression, parameters, returnParameters, 
+
+interface ASTKey {
+  validKeys: Set<string>
+  solidityIndex: number
+}
+
+const getASTKeys = (sources: any, sourceNameToIndex: {[name: string]: number}) => {
+
+  let ASTKeyMap = {} as {[index: number]: ASTKey}
+
+  for (const sourceName in sources) {
+    const astID = sources[sourceName]['id']
+    const ast = sources[sourceName]['ast']
+
+    const validKeys = findValidKeys(ast)
+
+    ASTKeyMap[astID] = {
+      validKeys: validKeys,
+      solidityIndex: sourceNameToIndex[sourceName]
+    }
+  }
+
+  return ASTKeyMap
+}
+
+const findValidKeys = (ast: any) => {
   const visited = [ast] as any[]
   const queue = [ast] as any[]
 
-  while (queue) {
+  const validKeys = new Set() as Set<string>
+
+  while (queue.length > 0) {
     const node = queue.splice(0, 1)[0]
 
-    if (node.nodeType === "ContractDefinition") {
-      const src_items = (node.src as string).split(':')
-      const src_start = parseInt(src_items[0])
-      const src_end = src_start + parseInt(src_items[1])
-      return `${src_start}:${src_end}`
-    }
+    if (typeof node === 'object' && node != null) {
+      // if the object is an array
+      if (Array.isArray(node)) {
+        for (const neighbour of node) {
+          if (!visited.includes(neighbour)) {
+            visited.push(neighbour)
+            queue.push(neighbour)
+          }
+        }
+      } else {
+        const nodeKeys = Object.keys(node)
 
-    if (node.nodes) {
-      for (const neighbour of node.nodes) {
-        if (!visited.includes(neighbour)) {
-          visited.push(neighbour)
-          queue.push(neighbour)
+        if (nodeKeys.includes("nodeType") && nodeKeys.includes("src")) {
+          if (node.nodeType !== "ContractDefinition") {
+            const src_items = (node.src as string).split(':')
+            const src_start = parseInt(src_items[0])
+            const src_end = src_start + parseInt(src_items[1])
+            validKeys.add(`${src_start}:${src_end}`)
+          }
+
+          for (const key in node) {
+            if (key !== 'nodeType' && key !== "src" && !visited.includes(node[key])) {
+              visited.push(node[key])
+              queue.push(node[key])
+            }
+          }
         }
       }
     }
     
   }
 
-  return ""
+  return validKeys
 }
 
 const TAG = "tag"
@@ -408,21 +565,62 @@ export function getRandomInt(max: number) {
 
 // REMOTE NETWORK REQUESTS
 
-export const compileSourceRemote = (sourceValue: any, settings: CompilerSettings) => {
+export const compileSourceRemote = (sources: {[index: number]: EVMSource}, settings: CompilerSettings) => {
+  
+  let requestFiles = [] as any[]
+
+  for (const index in sources) {
+    const currentFile = {
+      name: sources[index].name,
+      content: sources[index].sourceText
+    }
+
+    requestFiles.push(currentFile)
+  }
+
+  console.log(requestFiles)
+  
   return axios.post('http://127.0.0.1:5000/compile/', {
-    content: sourceValue,
+    files: requestFiles,
     settings: {
      ...settings
     }
   })
 }
 
-export const symExecSourceRemote = (sourceValue: any, compiledJSON: any, settings: SymexecSettings) => {
+export const symExecSourceRemote = (contract: string, sources: {[index: number]: EVMSource}, compiledJSON: any, settings: SymexecSettings) => {
+  let requestFiles = [] as any[]
+
+  if (settings[SYMEXEC_ENABLE_ONCHAIN] && !isAddress(settings[SYMEXEC_ONCHAIN_ADDRESS])) {
+    throw new Error("Invalid onchain address for symbolic execution")
+  }
+
+  for (const index in sources) {
+    const currentFile = {
+      name: sources[index].name,
+      content: sources[index].sourceText
+    }
+
+    requestFiles.push(currentFile)
+  }
+  
   return axios.post('http://127.0.0.1:5000/sym/', {
-    content: sourceValue,
+    files: requestFiles,
     json: JSON.stringify(compiledJSON),
     settings: {
       ...settings
+    },
+    contract: contract
+  })
+}
+
+export const etherscanLoader = (address: string) => {
+  return axios.get(ETHERSCAN_API_ENDPOINT, { 
+    params: {
+      module: 'contract',
+      action: 'getsourcecode',
+      address: address,
+      apikey: ETHERSCAN_API_KEY
     }
   })
 }

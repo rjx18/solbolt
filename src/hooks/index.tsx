@@ -1,31 +1,46 @@
 import { useEffect, useCallback, useMemo } from 'react';
-import { useAST, useCompiledJSON, useContract, useHash, useUpdateAllContracts } from '../contexts/Contracts';
+import { SOLC_BINARIES } from '../constants';
+import { useSolidityTabOpenManager } from '../contexts/Application';
+import { useAST, useCompiledJSON, useContract, useFilenameOfContract, useHash, useUpdateAllContracts } from '../contexts/Contracts';
 import { useRemoveHiglightedClass } from '../contexts/Decorations';
 import { useCompilerSettingsManager, useSymexecSettingsManager } from '../contexts/LocalStorage';
-import { useMappings, useUpdateAllMappings } from '../contexts/Mappings';
-import { addSymexecMetrics, compileSourceRemote, hashString, parseCompiledJSON, parseLegacyEVMMappings, symExecSourceRemote } from '../utils';
+import { useMappings, useRemoveAllMappings, useUpdateAllMappings } from '../contexts/Mappings';
+import { useSourceManager } from '../contexts/Sources';
+import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../types';
+import { addSymexecMetrics, compileSourceRemote, etherscanLoader, hashString, isEmpty, parseCompiledJSON, parseLegacyEVMMappings, safeAccess, symExecSourceRemote } from '../utils';
 
 export const useRemoteCompiler = () => {
 
   const updateAllMappings = useUpdateAllMappings()
   const updateAllContracts = useUpdateAllContracts()
   const removeHighlightedClass = useRemoveHiglightedClass()
+  const removeAllMappings = useRemoveAllMappings()
 
   const [compilerSettings, ] = useCompilerSettingsManager()
 
   return useCallback(
-    (sourceValue: string) => {
-      if (sourceValue && updateAllContracts && updateAllMappings && compilerSettings) {
-        return compileSourceRemote(sourceValue, compilerSettings).then((r) => {
+    (sources: {[index: number]: EVMSource}) => {
+      if (sources && compilerSettings) {
+        return compileSourceRemote(sources, compilerSettings).then((r) => {
           if (r.status === 200) {
             console.log("Compilation result!")
             console.log(r)
 
             const {contracts, ast} = parseCompiledJSON(r.data.result)
-            const hash = hashString(sourceValue)
-            updateAllContracts(contracts, ast, hash)
 
-            const parsedMappings = parseLegacyEVMMappings(sourceValue, r.data.result)
+            let hashMap = {} as {[name: string]: number}
+
+            for (const sourceIndex in sources) {
+              const hash = hashString(sources[sourceIndex].sourceText)
+
+              hashMap[sources[sourceIndex].name] = hash
+            }
+
+            updateAllContracts(contracts, ast, hashMap)
+
+            const parsedMappings = parseLegacyEVMMappings(sources, r.data.result)
+
+            removeAllMappings()
 
             for (const contractName in parsedMappings) {
               const {mappings, filteredLines, hasSymExec} = parsedMappings[contractName]
@@ -37,9 +52,13 @@ export const useRemoteCompiler = () => {
             removeHighlightedClass()
           }
         }).catch((r) => {
-          console.log(r)
-          const errorMessage = r.response.data.status.split("\n")[0]
+          if (r.response != null) {
+            const errorMessage = r.response.data.status.split("\n")[0]
           throw new Error(errorMessage)
+          }
+          else {
+            throw new Error(r.message)
+          }
         })
       }
       return Promise.reject("Hooks are undefined!");
@@ -59,17 +78,24 @@ export const useRemoteSymExec = (contract: string) => {
   const [symexecSettings, ] = useSymexecSettingsManager()
 
   return useCallback(
-    async (source: string) => {
-      if (source && compiledJSON && mappings && sourceHash != null && compiledAST) {
-        const newHash = hashString(source)
-        if (sourceHash === 0 || newHash !== sourceHash) {
-          throw new Error("Source content has changed, please compile first!")
+    async (sources: {[index: number]: EVMSource}) => {
+      
+      if (sources && compiledJSON && mappings && sourceHash != null && compiledAST) {
+        for (const sourceIndex in sources) {
+          console.log(sources[sourceIndex].sourceText)
+          const newHash = hashString(sources[sourceIndex].sourceText)
+          console.log(newHash)
+          const filename = sources[sourceIndex].name
+
+          if (sourceHash[filename] === 0 || newHash !== sourceHash[filename]) {
+            throw new Error("Source content has changed, please compile first!")
+          }
         }
 
         console.log("Reconstructed JSON")
         console.log(compiledJSON)
 
-        return symExecSourceRemote(source, compiledJSON, symexecSettings).then((r) => {
+        return symExecSourceRemote(contract, sources, compiledJSON, symexecSettings).then((r) => {
           if (r.status === 200) {
             console.log(r.data)
   
@@ -86,12 +112,146 @@ export const useRemoteSymExec = (contract: string) => {
             const errorMessage = r.response.data.status.split("\n")[0]
             throw new Error(errorMessage)
           }
+          else {
+            throw new Error(r.message)
+          }
         })
       }
     },
     [updateAllMappings, symexecSettings, sourceHash, compiledJSON, compiledAST, mappings]
   )
 };
+
+const ETHERSCAN_SOURCE = "SourceCode"
+const ETHERSCAN_LANGUAGE = "language"
+const ETHERSCAN_SOURCES = "sources"
+const ETHERSCAN_CONTENT = "content"
+const ETHERSCAN_RESULT = "result"
+const ETHERSCAN_COMPILER_VERSION = "CompilerVersion"
+const ETHERSCAN_OPTIMIZATION_USED = "OptimizationUsed"
+const ETHERSCAN_RUNS = "Runs"
+const ETHERSCAN_EVM_VERSION = "EVMVersion"
+const ETHERSCAN_SETTINGS = "settings"
+
+export const useAddressLoader = () => {
+  const [, { updateAllSources }] = useSourceManager()
+  const [, updateCompilerSettings] = useCompilerSettingsManager()
+  const removeAllMappings = useRemoveAllMappings()
+  const [, updateSolidityTabOpen ] = useSolidityTabOpenManager()
+
+  return useCallback(
+    async (address: string, handleCreateModel: ((content: string) => any)) => {
+      
+      if (address && handleCreateModel) {
+        return etherscanLoader(address).then((r) => {
+          if (r.status === 200) {
+            console.log("Loaded address from etherscan")
+            console.log(r.data)
+
+            const response = r.data
+
+            updateSolidityTabOpen(0)
+
+            if (response[ETHERSCAN_RESULT] == null || response[ETHERSCAN_RESULT].length === 0) {
+              throw new Error("Failed to load address, empty response")
+            }
+
+            const result = response[ETHERSCAN_RESULT][0]
+
+            if (result[ETHERSCAN_SOURCE] !== "") {
+              // remove outermost curly braces
+
+              let newSourceState = [] as Source[]
+              let detailedOptimizerSettings = {} as any
+              let hasDetail = false
+
+              if (result[ETHERSCAN_SOURCE].startsWith('{')) {
+                const parsedSource = result[ETHERSCAN_SOURCE].substring(1, result[ETHERSCAN_SOURCE].length - 1)
+
+                const sourceCode = JSON.parse(parsedSource)
+                if (sourceCode[ETHERSCAN_LANGUAGE] !== "Solidity") {
+                  throw new Error("Address is not compiled from Solidity")
+                }
+
+                // parse sources
+                const sources = sourceCode[ETHERSCAN_SOURCES]
+
+                for (const sourceFilename in sources) {
+                  const newSource = {
+                      [SOURCE_FILENAME]: sourceFilename,
+                      [SOURCE_MODEL]: handleCreateModel(safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])),
+                      [SOURCE_VIEW_STATE]: undefined,
+                      [SOURCE_LAST_SAVED_VALUE]: safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])
+                  }
+
+                  newSourceState.push(newSource)
+                }
+
+                if (!isEmpty(safeAccess(sourceCode, [ETHERSCAN_SETTINGS, 'optimizer', 'details']))) {
+                  hasDetail = true
+                  detailedOptimizerSettings = {...safeAccess(sourceCode, [ETHERSCAN_SETTINGS, 'optimizer', 'details'])}
+                }
+              } else {
+                const newSource = {
+                    [SOURCE_FILENAME]: `${result['ContractName']}.sol`,
+                    [SOURCE_MODEL]: handleCreateModel(result[ETHERSCAN_SOURCE]),
+                    [SOURCE_VIEW_STATE]: undefined,
+                    [SOURCE_LAST_SAVED_VALUE]: result[ETHERSCAN_SOURCE]
+                }
+
+                newSourceState.push(newSource)
+              }
+
+              updateAllSources(newSourceState)
+              removeAllMappings()
+
+              // parse settings
+
+              if (!SOLC_BINARIES.includes(result[ETHERSCAN_COMPILER_VERSION])) {
+                throw new Error("Error importing settings: Compiler version not supported!")
+              }
+
+              const newSettings = {
+                [COMPILER_VERSION]: result[ETHERSCAN_COMPILER_VERSION],
+                [COMPILER_EVM]: result[ETHERSCAN_EVM_VERSION],
+                [COMPILER_RUNS]: parseInt(result[ETHERSCAN_RUNS]),
+                [COMPILER_ENABLE]: result[ETHERSCAN_OPTIMIZATION_USED] === "1",
+                [COMPILER_VIAIR]: false, //
+                [COMPILER_DETAILS_ENABLED]: hasDetail,
+                [COMPILER_DETAILS]: {
+                  [COMPILER_PEEPHOLE]: true,
+                  [COMPILER_INLINER]: true,
+                  [COMPILER_JUMPDESTREMOVER]: true,
+                  [COMPILER_ORDERLITERALS]: false,
+                  [COMPILER_DEDUPLICATE]: false,
+                  [COMPILER_CSE]: false,
+                  [COMPILER_CONSTANTOPTIMIZER]: false,
+                  [COMPILER_YUL]: false,
+                  ...detailedOptimizerSettings
+                } as CompilerOptimizerDetails
+              } as CompilerSettings
+
+              updateCompilerSettings(newSettings)
+            } else {
+              throw new Error("Address does not have verified source code")
+            }
+          }
+        }).catch((r) => {
+          console.log(r)
+
+          if (r.response != null) {
+            const errorMessage = r.response.data.status.split("\n")[0]
+            throw new Error(errorMessage)
+          }
+          else {
+            throw new Error(r.message)
+          }
+        })
+      }
+    },
+    [updateAllSources, updateCompilerSettings]
+  )
+}
 
 export const useGasSummary = (contract: string) => {
   const mappings = useMappings(contract)
@@ -132,11 +292,16 @@ export const useFunctionSummary = (contract: string) => {
       for (const key in mappings.mappings) {
         const functionGas = mappings.mappings[key].functionGas
 
+        console.log("FN Mapping " + key)
+
         if (functionGas != null) {
+          console.log("FOUND FN!")
           const functionSelector = mappings.mappings[key].functionSelector
 
-          const functionName = Object.keys(contractJSON.evm.methodIdentifiers).find((key) => {
-            return contractJSON.evm.methodIdentifiers[key] === functionSelector
+          console.log(functionSelector)
+
+          const functionName = Object.keys(contractJSON.evm.methodIdentifiers).find((fn) => {
+            return contractJSON.evm.methodIdentifiers[fn] === functionSelector
           })
 
           if (functionName != null) {

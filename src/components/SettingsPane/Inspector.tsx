@@ -9,10 +9,11 @@ import AlertTitle from '@mui/material/AlertTitle';
 import { grey } from '@mui/material/colors';
 import zIndex from '@mui/material/styles/zIndex'
 import { useHighlightedClass } from '../../contexts/Decorations'
-import { useMappings, useMappingsByIndex } from '../../contexts/Mappings'
+import { useMappedContractNames, useMappings, useMappingsByIndex } from '../../contexts/Mappings'
 import { prettifyGas } from '../../utils'
 import { useFunctionSummary, useGasSummary } from '../../hooks'
 import { BarChart, Bar, XAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
+import { useAssemblyTabOpenManager } from '../../contexts/Application'
 
 const GAS_MAP_LABELS = {
   ['frag-heatmap-null']: 'NO COVERAGE',
@@ -43,16 +44,24 @@ const GAS_HISTOGRAM_COLORS = {
 } as {[key: string]: string}
 
 function Inspector() {
-  const [contractName, mappings] = useMappingsByIndex(0)
+  const contractNames = useMappedContractNames()
+  // const contractNames = ["ERC20", "IERC721", "EventFactory"]
+
+  const [assemblyTab, ] = useAssemblyTabOpenManager()
+
+  const [contractName, mappings] = useMappingsByIndex(assemblyTab)
   const highlightedClass = useHighlightedClass()
   const highlightedMappings = (mappings.mappings && highlightedClass.className) ? mappings.mappings[highlightedClass.className] : undefined
 
   const gasSummary = useGasSummary(contractName)
   const functionSummary = useFunctionSummary(contractName)
 
+  console.log("FN Summary")
+  console.log(functionSummary)
+
   console.log(highlightedClass.className)
 
-  let parsedGasSummary = Object.keys(GAS_MAP_LABELS).map((key) => {
+  let parsedGasSummary = Object.keys(GAS_MAP_LABELS).slice(1).map((key) => {
     if (gasSummary == null) {
       return {
         ["name"]: GAS_MAP_LABELS[key],

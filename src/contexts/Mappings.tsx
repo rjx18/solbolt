@@ -6,9 +6,10 @@ import { safeAccess } from '../utils'
 export enum UpdateTypes {
   UPDATE_MAPPING = 'UPDATE_MAPPING',
   UPDATE_ALL_MAPPINGS = 'UPDATE_ALL_MAPPINGS',
+  REMOVE_ALL_MAPPINGS = 'REMOVE_ALL_MAPPINGS'
 }
 
-export type MappingsUpdateAction = {type: UpdateTypes.UPDATE_MAPPING} | {type: UpdateTypes.UPDATE_ALL_MAPPINGS}
+export type MappingsUpdateAction = {type: UpdateTypes.UPDATE_MAPPING} | {type: UpdateTypes.UPDATE_ALL_MAPPINGS} | {type: UpdateTypes.REMOVE_ALL_MAPPINGS}
 
 export interface MappingsState {
   [contract: string]: ContractMappings;
@@ -32,8 +33,9 @@ export interface Payload {
 const MappingsContext = createContext<
   [MappingsState | undefined, {
     updateMapping: ((contract: string, key: string, evmMap: string) => void) | undefined, 
-    updateAllMappings: ((contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string, hasSymExec: boolean) => void) | undefined
-  }]>([undefined, {updateMapping: undefined, updateAllMappings: undefined}]);
+    updateAllMappings: ((contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string, hasSymExec: boolean) => void) | undefined,
+    removeAllMappings: (() => void) | undefined
+  }]>([undefined, {updateMapping: undefined, updateAllMappings: undefined, removeAllMappings: undefined}]);
 
 export function useMappingsContext() {
   return useContext(MappingsContext)
@@ -75,6 +77,10 @@ function reducer(state: MappingsState, { type, payload }: { type: UpdateTypes, p
       }
     }
 
+    case UpdateTypes.REMOVE_ALL_MAPPINGS: {
+      return {}
+    }
+
     default: {
       throw Error(`Unexpected action type in MappingsContext reducer: '${type}'.`)
     }
@@ -92,12 +98,17 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.UPDATE_ALL_MAPPINGS, payload: { contract, allMaps, filteredLines, hasSymExec } as Payload }  )
   }, [])
 
+  const removeAllMappings = useCallback(() => {
+    dispatch({ type: UpdateTypes.REMOVE_ALL_MAPPINGS, payload: undefined }  )
+  }, [])
+
   return (
     <MappingsContext.Provider
-      value={useMemo(() => [state, { updateMapping, updateAllMappings }], [
+      value={useMemo(() => [state, { updateMapping, updateAllMappings, removeAllMappings }], [
         state,
         updateMapping,
-        updateAllMappings
+        updateAllMappings,
+        removeAllMappings
       ])}
     >
       {children}
@@ -143,42 +154,20 @@ export function useUpdateAllMappings() {
     )
 }
 
+export function useRemoveAllMappings() {
 
-// export function Updater() {
-//   const [, { updateBlockNumber }] = useApplicationContext()
+  const [, { removeAllMappings }] = useMappingsContext()
 
-//   // update block number
-//   useEffect(() => {
-//     if (library && updateBlockNumber) {
-//       let stale = false
+  return useCallback(
+      () => {
+        if (removeAllMappings) {
+          removeAllMappings()
+        }
+      },
+      [removeAllMappings]
+    )
+}
 
-//       const update = () => {
-//         library
-//           .getBlockNumber()
-//           .then((blockNumber: number) => {
-//             if (!stale) {
-//               updateBlockNumber(chainId, blockNumber)
-//             }
-//           })
-//           .catch(() => {
-//             if (!stale) {
-//               updateBlockNumber(chainId, null)
-//             }
-//           })
-//       }
-
-//       update()
-//       library.on('block', update)
-
-//       return () => {
-//         stale = true
-//         library.removeListener('block', update)
-//       }
-//     }
-//   }, [chainId, library, updateBlockNumber])
-
-//   return null
-// }
 
 export function useMappings(contract: string) {
   const [state] = useMappingsContext();
@@ -199,14 +188,14 @@ export function useMappedContractNames() {
 export function useMappingsByIndex(index: number) {
   const [state] = useMappingsContext();
 
-  let contractName, contractMappings
+  let contractName = "UNKNOWN"
+  let contractMappings = {}
 
-  if (state == null) {
-    contractName = "UNKNOWN"
-    contractMappings = {}
-  } else {
-    contractName = Object.keys(state)[index]
-    contractMappings = safeAccess(state, [contractName])
+  if (state != null) {
+    if (index < Object.keys(state).length) {
+      contractName = Object.keys(state)[index]
+      contractMappings = safeAccess(state, [contractName])
+    }
   }
 
   return [contractName, contractMappings] as [string, ContractMappings]

@@ -17,6 +17,9 @@ contract TestLoop {
 export const NUM_FRAGMENT_CLASSES = 12
 export const OUTPUT_FILE_NAME = 'output.sol'
 
+export const ETHERSCAN_API_KEY = process.env.REACT_APP_SOLBOLT_ETHERSCAN_KEY
+export const ETHERSCAN_API_ENDPOINT = 'https://api.etherscan.io/api'
+
 export const SOLC_BINARIES = [
   'v0.8.13+commit.abaa5c0e',
   'v0.8.12+commit.f00d7308',

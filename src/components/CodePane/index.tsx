@@ -7,19 +7,23 @@ import { useToggleFreezeHoverManager, useToggleGasMetricsManager } from '../../c
 
 interface CodePaneProps {
   mappings?: {[key: string]: EVMMap};
-  content: string;
+  defaultContent?: string;
+  model?: any;
+  viewState?: any;
   readOnly?: boolean;
   source: HighlightedSource;
   contract?: string;
-  language: string;
+  language?: string;
   height: string;
   highlightedClass: HighlightedClass;
-  handleMouseHover: (key: string) => void;
+  handleMouseHover: (key: string, source: number) => void;
+  onMounted?: () => void;
   hasSymExec: boolean;
+  solidityTab?: number
 }
 
 const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
-  const {mappings, content, readOnly, source, contract, language, height, highlightedClass, hasSymExec, handleMouseHover} = props
+  const {mappings, defaultContent, readOnly, source, contract, language, height, highlightedClass, hasSymExec, handleMouseHover, onMounted, model, viewState, solidityTab} = props
 
   useImperativeHandle(ref, () => ({
     getValue() {
@@ -28,6 +32,12 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
         return editorRef.current.getValue()
       }
       return ''
+    },
+    createModel(content: string) {
+      return monacoRef.current.editor.createModel(content, "sol")
+    },
+    getViewState() {
+      return editorRef.current.saveViewState()
     }
   })); 
 
@@ -49,6 +59,10 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
     decorationsRef.current = undefined;
     mouseHandlerRef.current = undefined;
 
+    if (onMounted) {
+      onMounted()
+    }
+   
     // var bindFreeze = editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_Q, function() {
     //   toggleFreezeHover()
     // });
@@ -71,7 +85,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
         if (!isCompiled) {
           if (isTargetInLineRange(lineNumber, column, mappingItem.sourceMap.startLine, mappingItem.sourceMap.endLine, mappingItem.sourceMap.startChar, mappingItem.sourceMap.endChar)) {
             if (!isClassAlreadyHighlighted(highlightedClass, mappingKey.key)) {
-              handleMouseHover(mappingKey.key)
+              handleMouseHover(mappingKey.key, mappingItem.sourceMap.source)
             }
             return;
           }
@@ -79,7 +93,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
           for (const compiledFragment of mappingItem.compiledMaps) {
             if (isTargetInLineRange(lineNumber, column, compiledFragment.startLine, compiledFragment.endLine)) {
               if (!isClassAlreadyHighlighted(highlightedClass, mappingKey.key)) {
-                handleMouseHover(mappingKey.key)
+                handleMouseHover(mappingKey.key, mappingItem.sourceMap.source)
               }
               return;
             }
@@ -96,7 +110,22 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
       }
       mouseHandlerRef.current = editorRef.current.onMouseMove(handleMouseMove);
     }
-  }, [mappings, highlightedClass, freezeHover]);
+  }, [mappings, highlightedClass, freezeHover, solidityTab]);
+  
+  useEffect(() => {
+    if (model != null) {
+      editorRef.current.setModel(model);
+      if (viewState != null) {
+        editorRef.current.restoreViewState(viewState);
+      }
+    }
+  }, [model])
+  
+  // useEffect(() => {
+  //   if (editorRef.current) {
+  //     editorRef.current.layout()
+  //   }
+  // }, [editorRef.current, model, mappings])
   
 
   const generateSourceDecorations = (mappingItem: EVMMap, currClassCount: number, isHighlighted: boolean) => {
@@ -224,10 +253,12 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
         const isHighlighted = highlightedClass && highlightedClass.className === mappingKey.key
 
         if (!isCompiled) {
-          const [newDecorations, wholeLineDecorations] =  generateSourceDecorations(mappingItem, currClassCount, isHighlighted)
-          deltaDecorations.push(newDecorations)
-          if (wholeLineDecorations != null) {
-            deltaDecorations.push(wholeLineDecorations)
+          if (solidityTab != null && solidityTab === mappingItem.sourceMap.source) {
+            const [newDecorations, wholeLineDecorations] =  generateSourceDecorations(mappingItem, currClassCount, isHighlighted)
+            deltaDecorations.push(newDecorations)
+            if (wholeLineDecorations != null) {
+              deltaDecorations.push(wholeLineDecorations)
+            }
           }
         } else {
           const newDeltaDecorations = generateCompilerDecorations(mappingItem, currClassCount, isHighlighted)
@@ -248,16 +279,17 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
       decorationsRef.current = updatedDecorations
 
     }
-  }, [mappings, highlightedClass, showGasMetrics]);
+  }, [mappings, highlightedClass, showGasMetrics, solidityTab]);
 
   return <Editor
     defaultLanguage={language}
-    value={content}
+    value={defaultContent}
     height={height}
     onMount={handleEditorDidMount}
     options={{
       readOnly: readOnly,
-      glyphMargin: !readOnly
+      glyphMargin: !readOnly,
+      automaticLayout: true
     }}
 />;
 })

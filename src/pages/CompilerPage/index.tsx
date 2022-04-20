@@ -32,12 +32,18 @@ const CenteredBox = styled(Box)(({ theme }) => ({
 
 function CompilerPage() {
 
-  const [error, setError] = useState('')
+  const [error, setError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   const sourceChildRef = useRef<any>();
 
   const handleErrorClose = () => {
-    setError('')
+    setError(false)
+  }
+
+  const handleError = (_error: string) => {
+    setErrorMessage(_error)
+    setError(true)
   }
 
   const [, toggleFreezeHover] = useToggleFreezeHoverManager()
@@ -57,15 +63,15 @@ function CompilerPage() {
 
 
   return <>
-    <Snackbar open={error != null && error !== ''} autoHideDuration={10000} onClose={handleErrorClose}>
+    <Snackbar open={error} autoHideDuration={10000} onClose={handleErrorClose}>
       <Alert onClose={handleErrorClose} severity={"error"}>
         {
-          error
+          errorMessage
         }
       </Alert>
     </Snackbar>
     <Box display="flex" height="100%" width="100%">
-      <SolidityPane ref={sourceChildRef} setError={setError} />
+      <SolidityPane ref={sourceChildRef} setError={handleError} />
       {/* <Box p={3}>
         <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center">
           <Box>
@@ -80,7 +86,7 @@ function CompilerPage() {
           </Box>
         </Box>
       </Box> */}
-      <AssemblyPane setError={setError} sourceRef={sourceChildRef}/>
+      <AssemblyPane setError={handleError} sourceRef={sourceChildRef}/>
       <SettingsPane />
     </Box>
   </>;

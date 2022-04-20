@@ -8,19 +8,22 @@ import MappingsContextProvider from './contexts/Mappings'
 import DecorationsContextProvider from './contexts/Decorations'
 import LocalStorageContextProvider, { Updater as LocalStorageContextUpdater } from './contexts/LocalStorage'
 import ApplicationContextProvider from './contexts/Application'
+import SourcesContextProvider from './contexts/Sources'
 
 function ContextProviders({ children }: { children: any }) {
   return (
     <ApplicationContextProvider>
-      <LocalStorageContextProvider>
-        <ContractsContextProvider>
-          <MappingsContextProvider>
-            <DecorationsContextProvider>
-              {children}
-            </DecorationsContextProvider>
-          </MappingsContextProvider>
-        </ContractsContextProvider>
-      </LocalStorageContextProvider>
+      <SourcesContextProvider>
+        <LocalStorageContextProvider>
+          <ContractsContextProvider>
+            <MappingsContextProvider>
+              <DecorationsContextProvider>
+                {children}
+              </DecorationsContextProvider>
+            </MappingsContextProvider>
+          </ContractsContextProvider>
+        </LocalStorageContextProvider>
+      </SourcesContextProvider>
     </ApplicationContextProvider>
   )
 }

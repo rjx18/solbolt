@@ -9,12 +9,20 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import Select, { SelectChangeEvent } from '@mui/material/Select';
-import { SYMEXEC_CALLDEPTH, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../../types'
+import { SYMEXEC_CALLDEPTH, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_ONCHAIN_ADDRESS, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../../types'
 import TextField from '@mui/material/TextField';
 import NumberFormat from 'react-number-format'
 import Tooltip from '@mui/material/Tooltip';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
+import Accordion from '@mui/material/Accordion';
+import { styled } from '@mui/material/styles';
+import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
+import MuiAccordionSummary, {
+  AccordionSummaryProps,
+} from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import Switch from '@mui/material/Switch';
 
 function NumberFormatCustom(props: any) {
   const { inputRef, onChange, ...other } = props;
@@ -50,6 +58,16 @@ function NumberFormatCustom(props: any) {
   );
 }
 
+const AccordionSummary = styled((props: AccordionSummaryProps) => (
+  <MuiAccordionSummary
+      {...props}
+    />
+  ))(({ theme }) => ({
+    '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+      transform: 'none',
+    },
+  }));
+
 function SymexecOptions() {
   const [symexecSettings, updateSymexecSettings] = useSymexecSettingsManager()
 
@@ -63,6 +81,15 @@ function SymexecOptions() {
 
       updateSymexecSettings(newSymexecSettings)
     }
+  }
+
+  const handleEnableOnchain = (event: any, expanded: boolean) => {
+    const newSymexecSettings = {
+      ...symexecSettings,
+      [SYMEXEC_ENABLE_ONCHAIN]: expanded
+    }
+
+    updateSymexecSettings(newSymexecSettings)
   }
 
   return (
@@ -163,6 +190,35 @@ function SymexecOptions() {
               />
             </Box>
           </Tooltip>
+          <Box pt={2}>
+            <Accordion variant='outlined' expanded={symexecSettings[SYMEXEC_ENABLE_ONCHAIN]} onChange={handleEnableOnchain}>
+              <AccordionSummary
+                expandIcon={<Switch checked={symexecSettings[SYMEXEC_ENABLE_ONCHAIN]}/>}
+                aria-controls="panel1a-content"
+                id="symexec-onchain-header"
+              >
+                <Typography>Enable onchain lookup</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <FormGroup>
+                  <TextField
+                    id="symexec-onchain-address"
+                    label="Onchain address"
+                    InputLabelProps={{
+                      shrink: true,
+                    }}
+                    variant="outlined"
+                    value={symexecSettings[SYMEXEC_ONCHAIN_ADDRESS]}
+                    onChange={handleValueChange(SYMEXEC_ONCHAIN_ADDRESS)}
+                    fullWidth={true}
+                    onFocus={event => {
+                      event.target.select();
+                    }}
+                  />
+                </FormGroup>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
         </FormGroup>
         <Box pt={2}>
           <Alert severity="info">

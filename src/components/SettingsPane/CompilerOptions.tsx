@@ -147,6 +147,7 @@ function CompilerOptions() {
               label="EVM Version"
               onChange={handleValueChange(COMPILER_EVM)}
             >
+              <MenuItem value={'Default'}>Default</MenuItem>
               <MenuItem value={'homestead'}>homestead</MenuItem>
               <MenuItem value={'tangerineWhistle'}>tangerineWhistle</MenuItem>
               <MenuItem value={'spuriousDragon'}>spuriousDragon</MenuItem>
