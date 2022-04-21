@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useMemo, useCallback, useEffect } from 'react'
 import { OUTPUT_FILE_NAME } from '../constants'
-import { ContractJSON, EVMMap, Source, SOURCE_FILENAME, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../types'
+import { ContractJSON, EVMMap, Source, SourceState, SOURCE_FILENAME, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../types'
 
 import { safeAccess } from '../utils'
 
@@ -19,22 +19,22 @@ const ID = 'id'
 export type SourcesUpdateAction = {type: UpdateTypes.UPDATE_ALL_SOURCES} | {type: UpdateTypes.UPDATE_SOURCE} | {type: UpdateTypes.REMOVE_SOURCE}
 
 export interface SourcesState {
-  [SOURCES]: Source[]
+  [SOURCES]: SourceState[]
 }
 
 export interface Payload {
   index: number;
-  source?: Source;
+  source?: SourceState;
 }
 
 export interface Payload {
-  sources: Source[];
+  sources: SourceState[];
 }
 
 const SourcesContext = createContext<
   [SourcesState | undefined, {
-    updateAllSources: ((sources: Source[]) => void) | undefined,
-    updateSource: ((index: number, source: Source) => void) | undefined, 
+    updateAllSources: ((sources: SourceState[]) => void) | undefined,
+    updateSource: ((index: number, source: SourceState) => void) | undefined, 
     removeSource: ((index: number) => void) | undefined
   }]>([undefined, {updateAllSources: undefined, updateSource: undefined, removeSource: undefined}]);
 
@@ -50,7 +50,7 @@ function reducer(state: SourcesState, { type, payload }: { type: UpdateTypes, pa
       }
       const { sources } = payload
 
-      if (!sources || sources.length === 0) {
+      if (!sources) {
         throw Error(`Source is undefined or empty!`)
       }
 
@@ -139,11 +139,11 @@ export default function Provider({ children }: {children: any}) {
   )
 }
 
-export function useSourceManager() {
+export function useSourceStateManager() {
 
   const [state, { updateAllSources, updateSource, removeSource }] = useSourcesContext()
 
-  const sources = safeAccess(state, [SOURCES]) as Source[]
+  const sourceStates = safeAccess(state, [SOURCES]) as SourceState[]
 
   const _updateAllSources = useCallback(
     (newSources) => {
@@ -173,10 +173,10 @@ export function useSourceManager() {
   )
 
   return [
-    sources, {updateAllSources: _updateAllSources, updateSource: _updateSource, removeSource: _removeSource}, 
-  ] as [Source[], {
-    updateAllSources: ((sources: Source[]) => void), 
-    updateSource: ((index: number, source: Source) => void), 
-    removeSource: ((index: number) => void)
+    sourceStates, {updateAllSourceStates: _updateAllSources, updateSourceState: _updateSource, removeSourceState: _removeSource}, 
+  ] as [SourceState[], {
+    updateAllSourceStates: ((sourceStates: SourceState[]) => void), 
+    updateSourceState: ((index: number, sourceState: SourceState) => void), 
+    removeSourceState: ((index: number) => void)
   }]
 }

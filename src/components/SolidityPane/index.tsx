@@ -31,11 +31,12 @@ import Tabs from '@mui/material/Tabs';
 import MuiTab from '@mui/material/Tab';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
-import { useSourceManager } from '../../contexts/Sources'
 import TabDialog from '../TabDialog'
 
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import LoadAddressDialog from '../LoadAddressDialog'
+import { useSourceStateManager } from '../../contexts/Sources'
+import { useSourceContentManager } from '../../contexts/LocalStorage'
 
 interface StyledTabProps {
     label: any;
@@ -113,14 +114,20 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         }
       })); 
 
-    const [sources, {updateSource, removeSource}] = useSourceManager()
+    const [sourceContents, {updateSourceContent, removeSourceContent}] = useSourceContentManager()
 
-    const sourceNames = sources.map((source) => (source[SOURCE_FILENAME]))
+    const sourceNames = sourceContents.map((source) => (source[SOURCE_FILENAME]))
+
+    const [sourceStates, {updateAllSourceStates, updateSourceState, removeSourceState}] = useSourceStateManager()
+
+    console.log("Source states!")
+    console.log(sourceStates)
 
     const [solidityTab, updateSolidityTabOpen] = useSolidityTabOpenManager()
     const [assemblyTab, ] = useAssemblyTabOpenManager()
 
-    const currentSource = sources[solidityTab]
+    const currentSourceContent = sourceContents[solidityTab]
+    const currentSourceState = solidityTab < sourceStates.length ? sourceStates[solidityTab] : undefined
 
     const [contractName, mappings] = useMappingsByIndex(assemblyTab)
     const [, updateSettingsPaneOpen] = useSettingsTabOpenManager()
@@ -140,6 +147,33 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
 
     const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [loadFromAddressOpen, setLoadFromAddressOpen] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => {
+        if (mounted) 
+        {
+            let newSourceStates = [...sourceStates]
+            let didChange = false
+
+            // add states for sources that are not initialised yet
+            for (let i = 0; i < sourceContents.length; i++) {
+                if (i >= sourceStates.length || sourceStates[i][SOURCE_MODEL] == null) {
+                    didChange = true
+                    const newSourceContent = sourceContents[i][SOURCE_LAST_SAVED_VALUE]
+                    newSourceStates[i] = {
+                        [SOURCE_MODEL]: handleCreateModel(newSourceContent),
+                        [SOURCE_VIEW_STATE]: undefined
+                    }
+                }
+            }
+
+            if (didChange) {
+                updateAllSourceStates(newSourceStates)
+            }
+            
+        }
+    }, [mounted, sourceContents])
+    
 
     const handleClick = () => {
         if (sourceChildRef.current && remoteCompile) {
@@ -147,10 +181,10 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
 
           let compileSources = {} as {[index: number]: EVMSource}
         
-          for (const index in sources) {
+          for (const index in sourceContents) {
               compileSources[index] = {
-                  name: sources[index][SOURCE_FILENAME],
-                  sourceText: sources[index][SOURCE_LAST_SAVED_VALUE]
+                  name: sourceContents[index][SOURCE_FILENAME],
+                  sourceText: sourceContents[index][SOURCE_LAST_SAVED_VALUE]
               }
           }
 
@@ -180,29 +214,40 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         const viewState = sourceChildRef.current.getViewState()
         const updatedValue = sourceChildRef.current.getValue()
 
-        const newSource = {
-            ...currentSource,
-            [SOURCE_VIEW_STATE]: viewState,
+        const newSourceContent = {
+            ...currentSourceContent,
             [SOURCE_LAST_SAVED_VALUE]: updatedValue
         }
 
-        updateSource(solidityTab, newSource)
+        updateSourceContent(solidityTab, newSourceContent)
+
+        const newSourceState = {
+            [SOURCE_MODEL]: currentSourceState ? currentSourceState[SOURCE_MODEL] : handleCreateModel(currentSourceContent[SOURCE_LAST_SAVED_VALUE]),
+            [SOURCE_VIEW_STATE]: viewState
+        }
+
+        updateSourceState(solidityTab, newSourceState)
 
         updateSolidityTabOpen(newValue);
       };
 
     const handleAddSource = () => {
-        const sourceLength = sources.length
+        const sourceLength = sourceContents.length
         const newFilename = `File${sourceLength + 1}.sol`
 
-        const newSource = {
+        const newSourceContent = {
             [SOURCE_FILENAME]: newFilename,
-            [SOURCE_MODEL]: sourceChildRef.current.createModel(DEFAULT_SOLIDITY_VALUE),
-            [SOURCE_VIEW_STATE]: undefined,
             [SOURCE_LAST_SAVED_VALUE]: DEFAULT_SOLIDITY_VALUE
         }
 
-        updateSource(sourceLength, newSource)
+        updateSourceContent(sourceLength, newSourceContent)
+
+        const newSourceState = {
+            [SOURCE_MODEL]: handleCreateModel(DEFAULT_SOLIDITY_VALUE),
+            [SOURCE_VIEW_STATE]: undefined
+        }
+
+        updateSourceState(sourceLength, newSourceState)
         updateSolidityTabOpen(sourceLength)
     }
 
@@ -211,8 +256,10 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     }
 
     const onEditorMount = () => {
-        console.log("Mounted!")
-        handleAddSource()
+        if (sourceContents.length === 0) {
+            handleAddSource()
+        }
+        setMounted(true)
     }
 
     const handleEditClick = (e: any) => {
@@ -229,16 +276,17 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     }
 
     const handleEditDialogSave = (name: string) => {
-        const newSource = {
-            ...currentSource,
+        const newSourceContent = {
+            ...currentSourceContent,
             [SOURCE_FILENAME]: name,
         }
 
-        updateSource(solidityTab, newSource)
+        updateSourceContent(solidityTab, newSourceContent)
     }
 
     const handleEditDialogDelete = () => {
-        removeSource(solidityTab)
+        removeSourceContent(solidityTab)
+        removeSourceState(solidityTab)
         if (solidityTab != 0) {
             updateSolidityTabOpen(solidityTab - 1)
         }
@@ -355,9 +403,9 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
                 <CodePane
                     ref={sourceChildRef}
                     language="sol"
-                    contract={currentSource && currentSource[SOURCE_FILENAME]}
-                    model={currentSource && currentSource[SOURCE_MODEL]}
-                    viewState={currentSource && currentSource[SOURCE_VIEW_STATE]}
+                    contract={currentSourceContent && currentSourceContent[SOURCE_FILENAME]}
+                    model={currentSourceState && currentSourceState[SOURCE_MODEL]}
+                    viewState={currentSourceState && currentSourceState[SOURCE_VIEW_STATE]}
                     height="100%"
                     handleMouseHover={handleSourceMouseMove}
                     onMounted={onEditorMount}
@@ -371,10 +419,10 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
             </BorderBox>}
             <TabDialog 
                 open={editDialogOpen}
-                name={currentSource && currentSource[SOURCE_FILENAME]}
+                name={currentSourceContent && currentSourceContent[SOURCE_FILENAME]}
                 onClose={handleEditDialogClose}
                 onSave={handleEditDialogSave}
-                onDelete={sources.length > 1 ? handleEditDialogDelete : undefined}/>
+                onDelete={sourceContents.length > 1 ? handleEditDialogDelete : undefined}/>
             <LoadAddressDialog 
                 open={loadFromAddressOpen}
                 onClose={handleLoadFromAddressClose}

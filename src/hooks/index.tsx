@@ -5,9 +5,10 @@ import { useAST, useCompiledJSON, useContract, useFilenameOfContract, useHash, u
 import { useRemoveHiglightedClass } from '../contexts/Decorations';
 import { useCompilerSettingsManager, useSymexecSettingsManager } from '../contexts/LocalStorage';
 import { useMappings, useRemoveAllMappings, useUpdateAllMappings } from '../contexts/Mappings';
-import { useSourceManager } from '../contexts/Sources';
-import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../types';
+import { useSourceContentManager } from '../contexts/LocalStorage';
+import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SourceContent, SourceState, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../types';
 import { addSymexecMetrics, compileSourceRemote, etherscanLoader, hashString, isEmpty, parseCompiledJSON, parseLegacyEVMMappings, safeAccess, symExecSourceRemote } from '../utils';
+import { useSourceStateManager } from '../contexts/Sources';
 
 export const useRemoteCompiler = () => {
 
@@ -134,7 +135,8 @@ const ETHERSCAN_EVM_VERSION = "EVMVersion"
 const ETHERSCAN_SETTINGS = "settings"
 
 export const useAddressLoader = () => {
-  const [, { updateAllSources }] = useSourceManager()
+  const [, { updateAllSourceContents }] = useSourceContentManager()
+  const [, { updateAllSourceStates }] = useSourceStateManager()
   const [, updateCompilerSettings] = useCompilerSettingsManager()
   const removeAllMappings = useRemoveAllMappings()
   const [, updateSolidityTabOpen ] = useSolidityTabOpenManager()
@@ -142,7 +144,7 @@ export const useAddressLoader = () => {
   return useCallback(
     async (address: string, handleCreateModel: ((content: string) => any)) => {
       
-      if (address && handleCreateModel) {
+      if (address) {
         return etherscanLoader(address).then((r) => {
           if (r.status === 200) {
             console.log("Loaded address from etherscan")
@@ -161,7 +163,8 @@ export const useAddressLoader = () => {
             if (result[ETHERSCAN_SOURCE] !== "") {
               // remove outermost curly braces
 
-              let newSourceState = [] as Source[]
+              let newSourceContents = [] as SourceContent[]
+              let newSourceStates = [] as SourceState[]
               let detailedOptimizerSettings = {} as any
               let hasDetail = false
 
@@ -179,12 +182,16 @@ export const useAddressLoader = () => {
                 for (const sourceFilename in sources) {
                   const newSource = {
                       [SOURCE_FILENAME]: sourceFilename,
-                      [SOURCE_MODEL]: handleCreateModel(safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])),
-                      [SOURCE_VIEW_STATE]: undefined,
                       [SOURCE_LAST_SAVED_VALUE]: safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])
                   }
 
-                  newSourceState.push(newSource)
+                  const newSourceState = {
+                    [SOURCE_MODEL]: handleCreateModel(safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])),
+                    [SOURCE_VIEW_STATE]: undefined
+                  }
+
+                  newSourceContents.push(newSource)
+                  newSourceStates.push(newSourceState)
                 }
 
                 if (!isEmpty(safeAccess(sourceCode, [ETHERSCAN_SETTINGS, 'optimizer', 'details']))) {
@@ -194,15 +201,20 @@ export const useAddressLoader = () => {
               } else {
                 const newSource = {
                     [SOURCE_FILENAME]: `${result['ContractName']}.sol`,
-                    [SOURCE_MODEL]: handleCreateModel(result[ETHERSCAN_SOURCE]),
-                    [SOURCE_VIEW_STATE]: undefined,
                     [SOURCE_LAST_SAVED_VALUE]: result[ETHERSCAN_SOURCE]
                 }
 
-                newSourceState.push(newSource)
+                const newSourceState = {
+                  [SOURCE_MODEL]: handleCreateModel(result[ETHERSCAN_SOURCE]),
+                  [SOURCE_VIEW_STATE]: undefined
+                }
+
+                newSourceContents.push(newSource)
+                newSourceStates.push(newSourceState)
               }
 
-              updateAllSources(newSourceState)
+              updateAllSourceContents(newSourceContents)
+              updateAllSourceStates(newSourceStates)
               removeAllMappings()
 
               // parse settings
@@ -249,7 +261,7 @@ export const useAddressLoader = () => {
         })
       }
     },
-    [updateAllSources, updateCompilerSettings]
+    [updateAllSourceContents, updateAllSourceStates, updateCompilerSettings]
   )
 }
 
@@ -320,3 +332,89 @@ export const useFunctionSummary = (contract: string) => {
     return undefined    
   }, [mappings, contractJSON]);
 }
+
+// export function useSourceManager() {
+
+//   const [sourceState, { updateAllSources: updateAllSourceStates, updateSource: updateSourceState, removeSource: removeSourceState }] = useSourceStateManager()
+//   const [sourceContent, { updateAllSources: updateAllSourceContents, updateSource: updateSourceContent, removeSource: removeSourceContent }] = useSourceContentManager()
+
+//   const _updateAllSources = useCallback(
+//     (newSources: Source[]) => {
+//       if (newSources) {
+//         const newSourceContents = newSources.map((s) => {
+//           return {
+//             [SOURCE_FILENAME]: s[SOURCE_FILENAME],
+//             [SOURCE_LAST_SAVED_VALUE]: s[SOURCE_LAST_SAVED_VALUE]
+//           }
+//         })
+
+//         const newSourceStates = newSources.map((s) => {
+//           return {
+//             [SOURCE_MODEL]: s[SOURCE_MODEL],
+//             [SOURCE_VIEW_STATE]: s[SOURCE_VIEW_STATE]
+//           }
+//         })
+
+//         updateAllSourceStates(newSourceStates)
+//         updateAllSourceContents(newSourceContents)
+//       }
+//     },
+//     [updateAllSourceStates, updateAllSourceContents]
+//   )
+
+//   const _updateSource = useCallback(
+//     (index, source) => {
+//       if (index != null && source) {
+//         const newSourceContent = {
+//           [SOURCE_FILENAME]: source[SOURCE_FILENAME],
+//           [SOURCE_LAST_SAVED_VALUE]: source[SOURCE_LAST_SAVED_VALUE]
+//         }
+
+//         const newSourceState = {
+//           [SOURCE_MODEL]: source[SOURCE_MODEL],
+//           [SOURCE_VIEW_STATE]: source[SOURCE_VIEW_STATE]
+//         }
+
+//         updateSourceState(index, newSourceState)
+//         updateSourceContent(index, newSourceContent)
+//       }
+//     },
+//     [updateSourceState, updateSourceContent]
+//   )
+
+//   const _removeSource = useCallback(
+//     (index) => {
+//       if (index != null) {
+//         removeSourceState(index)
+//         removeSourceContent(index)
+//       }
+//     },
+//     [removeSourceState, removeSourceContent]
+//   )
+
+//   const sources = sourceContent.map((s, index) => {
+//     let currentSourceState
+
+//     if (index >= sourceState.length) {
+//       currentSourceState = {
+//         [SOURCE_MODEL]: undefined,
+//         [SOURCE_VIEW_STATE]: undefined
+//       }
+//     } else {
+//       currentSourceState = sourceState[index]
+//     }
+
+//     return {
+//       ...s,
+//       ...currentSourceState
+//     } as Source
+//   })
+
+//   return [
+//     sources, {updateAllSources: _updateAllSources, updateSource: _updateSource, removeSource: _removeSource}, 
+//   ] as [Source[], {
+//     updateAllSources: ((sourceStates: Source[]) => void), 
+//     updateSource: ((index: number, sourceState: Source) => void), 
+//     removeSource: ((index: number) => void)
+//   }]
+// }

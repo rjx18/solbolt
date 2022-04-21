@@ -121,9 +121,19 @@ export const SOURCE_LAST_SAVED_VALUE = "SOURCE_LAST_SAVED_VALUE"
 
 export interface Source {
   [SOURCE_FILENAME]: string
+  [SOURCE_LAST_SAVED_VALUE]: string,
   [SOURCE_MODEL]: any
   [SOURCE_VIEW_STATE]: any
-  [SOURCE_LAST_SAVED_VALUE]: string
+}
+
+export interface SourceContent {
+  [SOURCE_FILENAME]: string
+  [SOURCE_LAST_SAVED_VALUE]: string,
+}
+
+export interface SourceState {
+  [SOURCE_MODEL]: any
+  [SOURCE_VIEW_STATE]: any
 }
 
 export interface EVMSource {

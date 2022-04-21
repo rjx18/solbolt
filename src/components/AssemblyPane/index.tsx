@@ -28,7 +28,7 @@ import { isEmpty } from '../../utils'
 
 import Tabs from '@mui/material/Tabs';
 import MuiTab from '@mui/material/Tab';
-import { useSourceManager } from '../../contexts/Sources'
+import { useSourceContentManager } from '../../contexts/LocalStorage'
 
 interface AssemblyPaneProps {
     setError: (_error: string) => void
@@ -109,7 +109,7 @@ function AssemblyPane(props: AssemblyPaneProps) {
 
     const [isExecuting, setIsExecuting] = useState(false)
 
-    const [sources, ] = useSourceManager()
+    const [sourceContents, ] = useSourceContentManager()
 
     const [solidityTab, updateSolidityTabOpen] = useSolidityTabOpenManager()
 
@@ -119,10 +119,10 @@ function AssemblyPane(props: AssemblyPaneProps) {
 
           let compileSources = {} as {[index: number]: EVMSource}
         
-          for (const index in sources) {
+          for (const index in sourceContents) {
               compileSources[index] = {
-                  name: sources[index][SOURCE_FILENAME],
-                  sourceText: sources[index][SOURCE_LAST_SAVED_VALUE]
+                  name: sourceContents[index][SOURCE_FILENAME],
+                  sourceText: sourceContents[index][SOURCE_LAST_SAVED_VALUE]
               }
           }
 
