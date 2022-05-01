@@ -1,70 +1,62 @@
 import { useEffect, useCallback, useMemo } from 'react';
 import { SOLC_BINARIES } from '../constants';
-import { useSolidityTabOpenManager } from '../contexts/Application';
-import { useAST, useCompiledJSON, useContract, useFilenameOfContract, useHash, useUpdateAllContracts } from '../contexts/Contracts';
+import { useCompilerErrorManager, useSolidityTabOpenManager, useSymexecErrorManager } from '../contexts/Application';
+import { useAST, useCompiledJSON, useContract, useFilenameOfContract, useUpdateAllContracts } from '../contexts/Contracts';
 import { useRemoveHiglightedClass } from '../contexts/Decorations';
-import { useCompilerSettingsManager, useSymexecSettingsManager } from '../contexts/LocalStorage';
+import { useCompiledSourceHashManager, useCompilerSettingsManager, useCompilerTaskManager, useSymexecContractManager, useSymexecSettingsManager, useSymexecTaskManager } from '../contexts/LocalStorage';
 import { useMappings, useRemoveAllMappings, useUpdateAllMappings } from '../contexts/Mappings';
 import { useSourceContentManager } from '../contexts/LocalStorage';
-import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SourceContent, SourceState, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../types';
+import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SourceContent, SourceState, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE, SymexecSettings, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_ONCHAIN_ADDRESS } from '../types';
 import { addSymexecMetrics, compileSourceRemote, etherscanLoader, hashString, isEmpty, parseCompiledJSON, parseLegacyEVMMappings, safeAccess, symExecSourceRemote } from '../utils';
 import { useSourceStateManager } from '../contexts/Sources';
 
 export const useRemoteCompiler = () => {
 
-  const updateAllMappings = useUpdateAllMappings()
-  const updateAllContracts = useUpdateAllContracts()
-  const removeHighlightedClass = useRemoveHiglightedClass()
-  const removeAllMappings = useRemoveAllMappings()
+  // const updateAllMappings = useUpdateAllMappings()
+  // const updateAllContracts = useUpdateAllContracts()
+  // const removeHighlightedClass = useRemoveHiglightedClass()
+  // const removeAllMappings = useRemoveAllMappings()
+
+  const [, updateCompilerTask] = useCompilerTaskManager()
+  const [, updateCompiledSourceHash] = useCompiledSourceHashManager()
+  const [, updateCompilerError] = useCompilerErrorManager()
 
   const [compilerSettings, ] = useCompilerSettingsManager()
 
   return useCallback(
-    (sources: {[index: number]: EVMSource}) => {
-      if (sources && compilerSettings) {
-        return compileSourceRemote(sources, compilerSettings).then((r) => {
+    (sourceContents: SourceContent[]) => {
+      if (sourceContents.length !== 0 && compilerSettings) {
+        return compileSourceRemote(sourceContents, compilerSettings).then((r) => {
           if (r.status === 200) {
-            console.log("Compilation result!")
-            console.log(r)
 
-            const {contracts, ast} = parseCompiledJSON(r.data.result)
+            updateCompilerTask({
+              taskId: r.data.task_id,
+              taskStartTime: Date.now()
+            })
 
             let hashMap = {} as {[name: string]: number}
 
-            for (const sourceIndex in sources) {
-              const hash = hashString(sources[sourceIndex].sourceText)
+            for (const sourceContent of sourceContents) {
+              const hash = hashString(sourceContent[SOURCE_LAST_SAVED_VALUE])
 
-              hashMap[sources[sourceIndex].name] = hash
+              hashMap[sourceContent[SOURCE_FILENAME]] = hash
             }
 
-            updateAllContracts(contracts, ast, hashMap)
-
-            const parsedMappings = parseLegacyEVMMappings(sources, r.data.result)
-
-            removeAllMappings()
-
-            for (const contractName in parsedMappings) {
-              const {mappings, filteredLines, hasSymExec} = parsedMappings[contractName]
-              updateAllMappings(contractName, mappings, filteredLines, hasSymExec)
-              console.log('updated mappings for ' + contractName)
-              console.log(parsedMappings[contractName])
-            }
-
-            removeHighlightedClass()
+            updateCompiledSourceHash(hashMap)
+            updateCompilerError(null)
           }
         }).catch((r) => {
           if (r.response != null) {
-            const errorMessage = r.response.data.status.split("\n")[0]
-          throw new Error(errorMessage)
+            updateCompilerError("Error when publishing compilation task to server")
           }
           else {
-            throw new Error(r.message)
+            updateCompilerError(r.message)
           }
         })
       }
-      return Promise.reject("Hooks are undefined!");
+      updateCompilerError("Hooks are undefined!");
     },
-    [compilerSettings, updateAllMappings, updateAllContracts]
+    [compilerSettings, updateCompiledSourceHash, updateCompilerError, updateCompilerTask, hashString]
   )
 };
 
@@ -72,54 +64,47 @@ export const useRemoteSymExec = (contract: string) => {
 
   const compiledJSON = useCompiledJSON()
   const compiledAST = useAST()
-  const sourceHash = useHash()
+  const [compiledSourceHash, ] = useCompiledSourceHashManager()
   const updateAllMappings = useUpdateAllMappings()
-  const mappings = useMappings(contract)
+  const [sourceContents, ] = useSourceContentManager()
 
+  const [, updateSymexecTask] = useSymexecTaskManager()
   const [symexecSettings, ] = useSymexecSettingsManager()
+  const [, updateSymexecError] = useSymexecErrorManager()
+  const [, updateSymexecContract] = useSymexecContractManager()
 
   return useCallback(
-    async (sources: {[index: number]: EVMSource}) => {
-      
-      if (sources && compiledJSON && mappings && sourceHash != null && compiledAST) {
-        for (const sourceIndex in sources) {
-          console.log(sources[sourceIndex].sourceText)
-          const newHash = hashString(sources[sourceIndex].sourceText)
-          console.log(newHash)
-          const filename = sources[sourceIndex].name
+    async () => {
+      if (compiledJSON && compiledSourceHash != null && compiledAST) {
+        for (const sourceContent of sourceContents) {
+          const newHash = hashString(sourceContent[SOURCE_LAST_SAVED_VALUE])
+          const filename = sourceContent[SOURCE_FILENAME]
 
-          if (sourceHash[filename] === 0 || newHash !== sourceHash[filename]) {
-            throw new Error("Source content has changed, please compile first!")
+          if (compiledSourceHash[filename] === 0 || newHash !== compiledSourceHash[filename]) {
+            updateSymexecError("Source content has changed, please compile first!")
           }
         }
 
-        console.log("Reconstructed JSON")
-        console.log(compiledJSON)
-
-        return symExecSourceRemote(contract, sources, compiledJSON, symexecSettings).then((r) => {
+        return symExecSourceRemote(contract, sourceContents, compiledJSON, symexecSettings).then((r) => {
           if (r.status === 200) {
-            console.log(r.data)
-  
-            const newMappings = {...mappings.mappings}
-
-            addSymexecMetrics(newMappings, r.data, compiledAST)
-
-            updateAllMappings(contract, newMappings, mappings.filteredLines, true)
+            updateSymexecTask({
+              taskId: r.data.task_id,
+              taskStartTime: Date.now()
+            })
+            updateSymexecContract(contract)
+            updateSymexecError(null)
           }
         }).catch((r) => {
-          console.log(r)
-
           if (r.response != null) {
-            const errorMessage = r.response.data.status.split("\n")[0]
-            throw new Error(errorMessage)
+            updateSymexecError("Error when publishing symbolic execution task to server")
           }
           else {
-            throw new Error(r.message)
+            updateSymexecError(r.message)
           }
         })
       }
     },
-    [updateAllMappings, symexecSettings, sourceHash, compiledJSON, compiledAST, mappings]
+    [updateAllMappings, symexecSettings, compiledSourceHash, compiledJSON, compiledAST, contract, sourceContents]
   )
 };
 
@@ -138,6 +123,7 @@ export const useAddressLoader = () => {
   const [, { updateAllSourceContents }] = useSourceContentManager()
   const [, { updateAllSourceStates }] = useSourceStateManager()
   const [, updateCompilerSettings] = useCompilerSettingsManager()
+  const [symexecSettings, updateSymexecSettings] = useSymexecSettingsManager()
   const removeAllMappings = useRemoveAllMappings()
   const [, updateSolidityTabOpen ] = useSolidityTabOpenManager()
 
@@ -223,7 +209,7 @@ export const useAddressLoader = () => {
                 throw new Error("Error importing settings: Compiler version not supported!")
               }
 
-              const newSettings = {
+              const newCompilerSettings = {
                 [COMPILER_VERSION]: result[ETHERSCAN_COMPILER_VERSION],
                 [COMPILER_EVM]: result[ETHERSCAN_EVM_VERSION],
                 [COMPILER_RUNS]: parseInt(result[ETHERSCAN_RUNS]),
@@ -243,7 +229,15 @@ export const useAddressLoader = () => {
                 } as CompilerOptimizerDetails
               } as CompilerSettings
 
-              updateCompilerSettings(newSettings)
+              updateCompilerSettings(newCompilerSettings)
+
+              const newSymexecSettings = {
+                ...symexecSettings,
+                [SYMEXEC_ENABLE_ONCHAIN]: true,
+                [SYMEXEC_ONCHAIN_ADDRESS]: address
+              } as SymexecSettings
+
+              updateSymexecSettings(newSymexecSettings)
             } else {
               throw new Error("Address does not have verified source code")
             }

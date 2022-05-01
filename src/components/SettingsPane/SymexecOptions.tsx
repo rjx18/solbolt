@@ -1,5 +1,5 @@
-import React from 'react'
-import { useSymexecSettingsManager } from '../../contexts/LocalStorage'
+import React, { useState, useEffect } from 'react'
+import { useSymexecContractManager, useSymexecSettingsManager, useSymexecTaskManager } from '../../contexts/LocalStorage'
 
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -23,6 +23,8 @@ import MuiAccordionSummary, {
 } from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import Switch from '@mui/material/Switch';
+import CircularProgress from '@mui/material/CircularProgress'
+import { useSymexecErrorManager } from '../../contexts/Application'
 
 function NumberFormatCustom(props: any) {
   const { inputRef, onChange, ...other } = props;
@@ -70,6 +72,35 @@ const AccordionSummary = styled((props: AccordionSummaryProps) => (
 
 function SymexecOptions() {
   const [symexecSettings, updateSymexecSettings] = useSymexecSettingsManager()
+  const [symexecTask, ] = useSymexecTaskManager()
+  const [symexecError, ] = useSymexecErrorManager()
+  const [symexecContract, ] = useSymexecContractManager()
+  const [hasTask, setHasTask] = useState(false)
+  const [taskStartTime, setTaskStartTime] = useState(0)
+  // const [taskDuration, setTaskDuration] = useState(0)
+  const [timerElapsed, setTimerElapsed] = useState(0)
+
+  useEffect(() => {
+    if (symexecTask != null) {
+      setHasTask(true)
+      setTaskStartTime(symexecTask.taskStartTime)
+    }
+
+    // if (taskStartTime !== 0 && symexecTask == null) {
+    //   setTaskDuration((Date.now() - taskStartTime) / 1000)
+    // }
+  }, [symexecTask])
+
+  useEffect(() => {
+    if (symexecTask != null) {
+      const timer = setTimeout(() => {
+        setTimerElapsed((Date.now() - taskStartTime) / 1000);
+      }, 100);
+    
+      return () => clearTimeout(timer);
+    }
+  });
+  
 
   const handleValueChange = (option: string) => {
     return (event: any) => {
@@ -92,10 +123,46 @@ function SymexecOptions() {
     updateSymexecSettings(newSymexecSettings)
   }
 
+  const getSymexecAlert = () => {
+    if (symexecTask != null) {
+      return <Box pb={3}>
+        <Alert key="compiler-task-status" severity={ "info"} icon={<Box display="flex" sx={{paddingTop: "3px", paddingX: "2px"}}><CircularProgress size={18} /></Box>}>
+          <AlertTitle>Symbolically executing</AlertTitle>
+          Executing your <b>{symexecContract}</b> contract. This may take a while depending on
+          how busy the server is, please be patient...
+
+          <Typography variant="body2" sx={{pt: 2}}>
+            Time elapsed: {timerElapsed.toFixed(1)}s
+          </Typography>
+        </Alert>
+      </Box>
+    } else if (symexecError != null) {
+      return <Box pb={3}>
+        <Alert key="compiler-task-status" severity={"error"}>
+          <AlertTitle>Symbolic execution error</AlertTitle>
+          The following error occured while trying to symbolically execute:
+          <Typography variant="body2" sx={{pt: 2, fontWeight: 500}}>
+            {symexecError}
+          </Typography>
+        </Alert>
+      </Box>
+    } else if (hasTask) {
+      return <Box pb={3}>
+        <Alert key="compiler-task-status" severity={"success"}>
+          <AlertTitle>Symbolic execution succeeded!</AlertTitle>
+          Time taken: {timerElapsed.toFixed(1)}s
+        </Alert>
+      </Box>
+    } else {
+      return null
+    }
+  }
+
   return (
     <Box>
       <Typography variant="button" sx={{fontSize: "12pt"}}>Symexec Options</Typography>
       <Box py={3}>
+        {getSymexecAlert()}
         <FormGroup>
           <FormControl fullWidth>
             <InputLabel id="symexec-settings-strategy">Strategy</InputLabel>
@@ -191,33 +258,35 @@ function SymexecOptions() {
             </Box>
           </Tooltip>
           <Box pt={2}>
-            <Accordion variant='outlined' expanded={symexecSettings[SYMEXEC_ENABLE_ONCHAIN]} onChange={handleEnableOnchain}>
-              <AccordionSummary
-                expandIcon={<Switch checked={symexecSettings[SYMEXEC_ENABLE_ONCHAIN]}/>}
-                aria-controls="panel1a-content"
-                id="symexec-onchain-header"
-              >
-                <Typography>Enable onchain lookup</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <FormGroup>
-                  <TextField
-                    id="symexec-onchain-address"
-                    label="Onchain address"
-                    InputLabelProps={{
-                      shrink: true,
-                    }}
-                    variant="outlined"
-                    value={symexecSettings[SYMEXEC_ONCHAIN_ADDRESS]}
-                    onChange={handleValueChange(SYMEXEC_ONCHAIN_ADDRESS)}
-                    fullWidth={true}
-                    onFocus={event => {
-                      event.target.select();
-                    }}
-                  />
-                </FormGroup>
-              </AccordionDetails>
-            </Accordion>
+            <Tooltip title="Uses the concrete onchain storage state instead of a symbolic storage state while executing">
+              <Accordion variant='outlined' expanded={symexecSettings[SYMEXEC_ENABLE_ONCHAIN]} onChange={handleEnableOnchain}>
+                  <AccordionSummary
+                    expandIcon={<Switch checked={symexecSettings[SYMEXEC_ENABLE_ONCHAIN]}/>}
+                    aria-controls="panel1a-content"
+                    id="symexec-onchain-header"
+                  >
+                    <Typography>Enable onchain lookup</Typography>
+                  </AccordionSummary>
+                <AccordionDetails>
+                  <FormGroup>
+                    <TextField
+                      id="symexec-onchain-address"
+                      label="Onchain address"
+                      InputLabelProps={{
+                        shrink: true,
+                      }}
+                      variant="outlined"
+                      value={symexecSettings[SYMEXEC_ONCHAIN_ADDRESS]}
+                      onChange={handleValueChange(SYMEXEC_ONCHAIN_ADDRESS)}
+                      fullWidth={true}
+                      onFocus={event => {
+                        event.target.select();
+                      }}
+                    />
+                  </FormGroup>
+                </AccordionDetails>
+              </Accordion>
+            </Tooltip>
           </Box>
         </FormGroup>
         <Box pt={2}>

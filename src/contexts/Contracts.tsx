@@ -9,6 +9,8 @@ export enum UpdateTypes {
   UPDATE_ALL_CONTRACTS = 'UPDATE_ALL_CONTRACTS',
 }
 
+const SOLBOLT_CONTRACTS = "SOLBOLT_CONTRACTS"
+
 const CONTRACTS = 'contracts'
 const SOURCES = 'sources'
 const AST = 'ast'
@@ -27,9 +29,6 @@ export interface ContractsState {
   [AST]: {
     [name: string]: any
   },
-  [HASH]: {
-    [name: string]: number
-  }
 }
 
 export interface Payload {
@@ -46,16 +45,13 @@ export interface Payload {
   },
   ast: {
     [name: string]: any
-  },
-  hash: {
-    [name: string]: number
   }
 }
 
 const ContractsContext = createContext<
   [ContractsState | undefined, {
     updateContract: ((filename: string, name: string, contract: ContractJSON) => void) | undefined, 
-    updateAllContracts: ((contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}, hash: {[name: string]: number}) => void) | undefined
+    updateAllContracts: ((contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}) => void) | undefined
   }]>([undefined, {updateContract: undefined, updateAllContracts: undefined}]);
 
 export function useContractsContext() {
@@ -85,7 +81,7 @@ function reducer(state: ContractsState, { type, payload }: { type: UpdateTypes, 
       if (!payload) {
         throw Error(`Payload is undefined or null!`)
       }
-      const { contracts, ast, hash } = payload
+      const { contracts, ast } = payload
       return {
         ...state,
         [CONTRACTS]: {
@@ -94,7 +90,6 @@ function reducer(state: ContractsState, { type, payload }: { type: UpdateTypes, 
         [AST]: {
           ...ast
         },
-        [HASH]: hash
       }
     }
 
@@ -104,19 +99,34 @@ function reducer(state: ContractsState, { type, payload }: { type: UpdateTypes, 
   }
 }
 
-export default function Provider({ children }: {children: any}) {
-  const [state, dispatch] = useReducer(reducer, {
+function init() {
+  const defaultMappingState = {
     [CONTRACTS]: {},
     [AST]: {},
     [HASH]: {}
-  } as ContractsState)
+  } as ContractsState
+
+  try {
+    const windowItem = window.localStorage.getItem(SOLBOLT_CONTRACTS)
+    if (windowItem) {
+      const parsed = JSON.parse(windowItem)
+      return { ...parsed }
+    } 
+    return defaultMappingState
+  } catch {
+    return defaultMappingState
+  }
+}
+
+export default function Provider({ children }: {children: any}) {
+  const [state, dispatch] = useReducer(reducer, undefined, init)
 
   const updateContract = useCallback((filename, name, contract) => {
     dispatch({ type: UpdateTypes.UPDATE_CONTRACT, payload: { filename, name, contract } as Payload })
   }, [])
 
-  const updateAllContracts = useCallback((contracts, ast, hash) => {
-    dispatch({ type: UpdateTypes.UPDATE_ALL_CONTRACTS, payload: { contracts, ast, hash } as Payload }  )
+  const updateAllContracts = useCallback((contracts, ast) => {
+    dispatch({ type: UpdateTypes.UPDATE_ALL_CONTRACTS, payload: { contracts, ast } as Payload }  )
   }, [])
 
   return (
@@ -130,6 +140,16 @@ export default function Provider({ children }: {children: any}) {
       {children}
     </ContractsContext.Provider>
   )
+}
+
+export function Updater() {
+  const [state, ] = useContractsContext()
+
+  useEffect(() => {
+    window.localStorage.setItem(SOLBOLT_CONTRACTS, JSON.stringify({ ...state }))
+  })
+
+  return null
 }
 
 export function useUpdateContract() {
@@ -155,7 +175,7 @@ export function useUpdateAllContracts() {
   const [, { updateAllContracts }] = useContractsContext()
 
   return useCallback(
-      (contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}, hash: {[name: string]: number}) => {
+      (contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}) => {
         console.log("updating all contracts")
         console.log(contracts)
         console.log(ast)
@@ -167,7 +187,7 @@ export function useUpdateAllContracts() {
           ast
         ) {
           console.log("updated all contracts")
-          updateAllContracts(contracts, ast, hash)
+          updateAllContracts(contracts, ast)
         }
       },
       [updateAllContracts]
@@ -214,12 +234,6 @@ export function useAST() {
   const [state] = useContractsContext();
 
   return safeAccess(state, [AST])
-}
-
-export function useHash() {
-  const [state] = useContractsContext();
-
-  return safeAccess(state, [HASH])
 }
 
 // recreates the compiled JSON object

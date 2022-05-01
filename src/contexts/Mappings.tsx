@@ -3,6 +3,8 @@ import { ContractMappings, EVMMap } from '../types'
 
 import { safeAccess } from '../utils'
 
+const SOLBOLT_MAPPINGS = "SOLBOLT_MAPPINGS"
+
 export enum UpdateTypes {
   UPDATE_MAPPING = 'UPDATE_MAPPING',
   UPDATE_ALL_MAPPINGS = 'UPDATE_ALL_MAPPINGS',
@@ -87,8 +89,23 @@ function reducer(state: MappingsState, { type, payload }: { type: UpdateTypes, p
   }
 }
 
+function init() {
+  const defaultMappingState = {} as MappingsState
+
+  try {
+    const windowItem = window.localStorage.getItem(SOLBOLT_MAPPINGS)
+    if (windowItem) {
+      const parsed = JSON.parse(windowItem)
+      return { ...defaultMappingState, ...parsed }
+    } 
+    return defaultMappingState
+  } catch {
+    return defaultMappingState
+  }
+}
+
 export default function Provider({ children }: {children: any}) {
-  const [state, dispatch] = useReducer(reducer, {} as MappingsState)
+  const [state, dispatch] = useReducer(reducer, undefined, init)
 
   const updateMapping = useCallback((contract, key, evmMap) => {
     dispatch({ type: UpdateTypes.UPDATE_MAPPING, payload: { contract, key, evmMap } as Payload })
@@ -114,6 +131,16 @@ export default function Provider({ children }: {children: any}) {
       {children}
     </MappingsContext.Provider>
   )
+}
+
+export function Updater() {
+  const [state, ] = useMappingsContext()
+
+  useEffect(() => {
+    window.localStorage.setItem(SOLBOLT_MAPPINGS, JSON.stringify({ ...state }))
+  })
+
+  return null
 }
 
 export function useUpdateMappings() {

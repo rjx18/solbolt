@@ -25,10 +25,10 @@ function App() {
     <RootBox display="flex">
       <Router>
         <Routes>
-          <Route path="/compile" element={<CompilerPage />} />
+          <Route path="/" element={<CompilerPage />} />
           <Route
               path="*"
-              element={<Navigate to="/compile" />}
+              element={<Navigate to="/" />}
           />
         </Routes>
       </Router>

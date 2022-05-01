@@ -1,5 +1,5 @@
-import React from 'react'
-import { useCompilerSettingsManager } from '../../contexts/LocalStorage'
+import React, { useState, useEffect } from 'react'
+import { useCompilerSettingsManager, useCompilerTaskManager } from '../../contexts/LocalStorage'
 
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -26,6 +26,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { minWidth } from '@mui/system'
 import Tooltip from '@mui/material/Tooltip';
 import { SOLC_BINARIES } from '../../constants'
+import Alert from '@mui/material/Alert'
+import AlertTitle from '@mui/material/AlertTitle'
+import CircularProgress from '@mui/material/CircularProgress'
+import { useCompilerErrorManager } from '../../contexts/Application'
+import { isVersionGTE } from '../../utils'
 
 function NumberFormatCustom(props: any) {
   const { inputRef, onChange, ...other } = props;
@@ -73,6 +78,37 @@ const AccordionSummary = styled((props: AccordionSummaryProps) => (
 
 function CompilerOptions() {
   const [compilerSettings, updateCompilerSettings] = useCompilerSettingsManager()
+  const [compilerTask, ] = useCompilerTaskManager()
+  const [compilerError, ] = useCompilerErrorManager()
+  const [hasTask, setHasTask] = useState(false)
+  const [taskStartTime, setTaskStartTime] = useState(0)
+  // const [taskDuration, setTaskDuration] = useState(0)
+  const [timerElapsed, setTimerElapsed] = useState(0)
+
+  useEffect(() => {
+    if (compilerTask != null) {
+      setHasTask(true)
+      setTaskStartTime(compilerTask.taskStartTime)
+    }
+
+    // if (taskStartTime !== 0 && compilerTask == null) {
+    //   setTaskDuration((Date.now() - taskStartTime) / 1000)
+    // }
+  }, [compilerTask])
+  
+  useEffect(() => {
+    if (compilerTask != null) {
+      const timer = setTimeout(() => {
+        setTimerElapsed((Date.now() - taskStartTime) / 1000);
+      }, 100);
+    
+      return () => clearTimeout(timer);
+    }
+  });
+
+  const enabledForVersion = (version: string) => {
+    return isVersionGTE(version, compilerSettings[COMPILER_VERSION])
+  }
 
   const handleValueChange = (option: string) => {
     return (event: any) => {
@@ -121,10 +157,45 @@ function CompilerOptions() {
     updateCompilerSettings(newCompilerSettings)
   }
 
+  const getCompilerAlert = () => {
+    if (compilerTask != null) {
+      return <Box pb={3}>
+        <Alert key="compiler-task-status" severity={ "info"} icon={<Box display="flex" sx={{paddingTop: "3px", paddingX: "2px"}}><CircularProgress size={18} /></Box>}>
+          <AlertTitle>Compiling</AlertTitle>
+          Compiling your Solidity contracts, please be patient...
+
+          <Typography variant="body2" sx={{pt: 2}}>
+            Time elapsed: {timerElapsed.toFixed(1)}s
+          </Typography>
+        </Alert>
+      </Box>
+    } else if (compilerError != null) {
+      return <Box pb={3}>
+        <Alert key="compiler-task-status" severity={"error"}>
+          <AlertTitle>Compilation error</AlertTitle>
+          The following error occured while compiling your contracts:
+          <Typography variant="body2" sx={{pt: 2, fontWeight: 500}}>
+            {compilerError}
+          </Typography>
+        </Alert>
+      </Box>
+    } else if (hasTask) {
+      return <Box pb={3}>
+        <Alert key="compiler-task-status" severity={"success"}>
+          <AlertTitle>Compilation succeeded!</AlertTitle>
+          Time taken: {timerElapsed.toFixed(1)}s
+        </Alert>
+      </Box>
+    } else {
+      return null
+    }
+  }
+
   return (
     <Box>
       <Typography variant="button" sx={{fontSize: "12pt"}}>Compiler Options</Typography>
       <Box py={3}>
+        {getCompilerAlert()}
         <FormGroup>
           <FormControl fullWidth>
             <InputLabel id="compiler-settings-evm-version">Compiler Version</InputLabel>
@@ -178,9 +249,11 @@ function CompilerOptions() {
               }}
             />
           </Box>
-          <FormControlLabel sx={{pt: 2}} control={<Switch />} checked={compilerSettings[COMPILER_VIAIR]} onChange={handleCheckedChange(COMPILER_VIAIR)} label="Enable experimental Yul IR pipeline" labelPlacement='end' />
+          <Tooltip title="Only available for Solidity v0.7.5 and above">
+            <FormControlLabel sx={{pt: 2}} control={<Switch />} checked={compilerSettings[COMPILER_VIAIR]} onChange={handleCheckedChange(COMPILER_VIAIR)} disabled={!enabledForVersion("v0.7.5")} label="Enable experimental Yul IR pipeline" labelPlacement='end' />
+          </Tooltip>
           <Box pt={2}>
-            <Accordion variant='outlined' expanded={compilerSettings[COMPILER_DETAILS_ENABLED]} onChange={handleEnableDetails}>
+            <Accordion variant='outlined' expanded={compilerSettings[COMPILER_DETAILS_ENABLED]} onChange={handleEnableDetails} disabled={!enabledForVersion("v0.5.5")}>
               <AccordionSummary
                 expandIcon={<Switch checked={compilerSettings[COMPILER_DETAILS_ENABLED]}/>}
                 aria-controls="panel1a-content"
@@ -193,8 +266,8 @@ function CompilerOptions() {
                   <Tooltip title="Enables the peephole optimizer">
                     <FormControlLabel control={<Switch />} checked={compilerSettings[COMPILER_DETAILS][COMPILER_PEEPHOLE]} onChange={handleDetailsChange(COMPILER_PEEPHOLE)} label="Peephole" labelPlacement='end' />
                   </Tooltip>
-                  <Tooltip title="Enables the inliner optimizer, which inlines function bodies rather than using jumps">
-                    <FormControlLabel control={<Switch />} checked={compilerSettings[COMPILER_DETAILS][COMPILER_INLINER]} onChange={handleDetailsChange(COMPILER_INLINER)} label="Inliner" labelPlacement='end' />
+                  <Tooltip title="Enables the inliner optimizer, which inlines function bodies rather than using jumps. Only available for v0.8.2+">
+                    <FormControlLabel control={<Switch />} checked={compilerSettings[COMPILER_DETAILS][COMPILER_INLINER]} disabled={!enabledForVersion("v0.8.2")} onChange={handleDetailsChange(COMPILER_INLINER)} label="Inliner" labelPlacement='end' />
                   </Tooltip>
                   <Tooltip title="Removes unused JUMPDESTs">
                     <FormControlLabel control={<Switch />} checked={compilerSettings[COMPILER_DETAILS][COMPILER_JUMPDESTREMOVER]} onChange={handleDetailsChange(COMPILER_JUMPDESTREMOVER)} label="JUMPDEST remover" labelPlacement='end' />

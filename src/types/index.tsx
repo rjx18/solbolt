@@ -141,6 +141,11 @@ export interface EVMSource {
   sourceText: string;
 }
 
+export interface TaskStatus {
+  taskId: string
+  taskStartTime: number
+}
+
 // export interface ContractData {
 //   json: ContractJson
 // }

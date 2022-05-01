@@ -3,7 +3,7 @@ import { DEFAULT_SOLIDITY_VALUE } from '../../constants'
 import { useHighlightedClass, useUpdateHiglightedClass } from '../../contexts/Decorations'
 import { useMappings, useMappingsByIndex } from '../../contexts/Mappings'
 import { useAddressLoader, useRemoteCompiler } from '../../hooks'
-import { EVMJSON, EVMSource, HighlightedSource, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../../types'
+import { EVMJSON, EVMSource, HighlightedSource, SourceContent, SourceState, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SOURCE_MODEL, SOURCE_VIEW_STATE } from '../../types'
 import CodePane from '../CodePane'
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -36,7 +36,7 @@ import TabDialog from '../TabDialog'
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import LoadAddressDialog from '../LoadAddressDialog'
 import { useSourceStateManager } from '../../contexts/Sources'
-import { useSourceContentManager } from '../../contexts/LocalStorage'
+import { useCompilerTaskManager, useSourceContentManager } from '../../contexts/LocalStorage'
 
 interface StyledTabProps {
     label: any;
@@ -106,11 +106,8 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     const { setError } = props
 
     useImperativeHandle(ref, () => ({
-        getSourceValue() {
-          if (sourceChildRef.current) {
-            return sourceChildRef.current.getValue()
-          }
-          return ''
+        updateSourceContentAndState() {
+          updateSourceContentAndState()
         }
       })); 
 
@@ -119,9 +116,6 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     const sourceNames = sourceContents.map((source) => (source[SOURCE_FILENAME]))
 
     const [sourceStates, {updateAllSourceStates, updateSourceState, removeSourceState}] = useSourceStateManager()
-
-    console.log("Source states!")
-    console.log(sourceStates)
 
     const [solidityTab, updateSolidityTabOpen] = useSolidityTabOpenManager()
     const [assemblyTab, ] = useAssemblyTabOpenManager()
@@ -140,7 +134,8 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
 
     const sourceChildRef = useRef<any>();
 
-    const [isCompiling, setIsCompiling] = useState(false)
+    const [compilerTask, ] = useCompilerTaskManager()
+    const isCompiling = compilerTask != null
     const [isLoadingFromAddress, setIsLoadingFromAddress] = useState(false)
 
     const [freezeHover, toggleFreezeHover] = useToggleFreezeHoverManager()
@@ -177,25 +172,9 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
 
     const handleClick = () => {
         if (sourceChildRef.current && remoteCompile) {
-          setIsCompiling(true)
-
-          let compileSources = {} as {[index: number]: EVMSource}
-        
-          for (const index in sourceContents) {
-              compileSources[index] = {
-                  name: sourceContents[index][SOURCE_FILENAME],
-                  sourceText: sourceContents[index][SOURCE_LAST_SAVED_VALUE]
-              }
-          }
-
-          compileSources[solidityTab].sourceText = sourceChildRef.current.getValue()
-
-          remoteCompile(compileSources).catch((r: Error) => {
-            console.log(r)
-            setError(r.message)
-          }).finally(() => {
-            setIsCompiling(false)
-          })
+            const [newSourceContent, ] = updateSourceContentAndState()
+            remoteCompile(newSourceContent)
+            updateSettingsPaneOpen(0)
         }
     }
 
@@ -211,6 +190,13 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     }
 
     const handleSolidityTabChange = (event: React.SyntheticEvent, newValue: number) => {
+        updateSourceContentAndState()
+
+        updateSolidityTabOpen(newValue);
+      };
+
+
+    const updateSourceContentAndState = () => {
         const viewState = sourceChildRef.current.getViewState()
         const updatedValue = sourceChildRef.current.getValue()
 
@@ -221,15 +207,20 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
 
         updateSourceContent(solidityTab, newSourceContent)
 
+        let updatedSourceContent = [...sourceContents]
+        updatedSourceContent[solidityTab] = newSourceContent
+
         const newSourceState = {
             [SOURCE_MODEL]: currentSourceState ? currentSourceState[SOURCE_MODEL] : handleCreateModel(currentSourceContent[SOURCE_LAST_SAVED_VALUE]),
             [SOURCE_VIEW_STATE]: viewState
         }
 
         updateSourceState(solidityTab, newSourceState)
+        let updatedSourceStates = [...sourceStates]
+        updatedSourceStates[solidityTab] = newSourceState
 
-        updateSolidityTabOpen(newValue);
-      };
+        return [updatedSourceContent, updatedSourceStates] as [SourceContent[], SourceState[]]
+    }
 
     const handleAddSource = () => {
         const sourceLength = sourceContents.length
@@ -353,7 +344,7 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
                                 </Tooltip>
                             </Grid>
                             <Grid item>
-                                <Tooltip title="Compiler settings">
+                                <Tooltip title="Compiler options">
                                     <SquareIconButton onClick={handleOpenCompilerSettings}>
                                         <SettingsIcon htmlColor={grey[600]} />
                                     </SquareIconButton>

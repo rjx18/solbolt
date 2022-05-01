@@ -1,7 +1,11 @@
 import React, { createContext, useContext, useReducer, useMemo, useCallback, useEffect } from 'react'
-import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, Source, SourceContent, SymexecSettings, SYMEXEC_CALLDEPTH, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_ONCHAIN_ADDRESS, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../types'
+import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SourceContent, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SymexecSettings, SYMEXEC_CALLDEPTH, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_ONCHAIN_ADDRESS, SYMEXEC_STRATEGY, SYMEXEC_TX, TaskStatus } from '../types'
 
-import { safeAccess } from '../utils'
+import { compileSourceRemoteStatus, hashString, parseCompiledJSON, parseLegacyEVMMappings, safeAccess } from '../utils'
+import { useCompilerErrorManager } from './Application'
+import { useUpdateAllContracts } from './Contracts'
+import { useRemoveHiglightedClass } from './Decorations'
+import { useRemoveAllMappings, useUpdateAllMappings } from './Mappings'
 
 const SOLBOLT = 'SOLBOLT'
 
@@ -11,21 +15,43 @@ const CURRENT_VERSION = 3
 const VERSION = 'VERSION'
 const LAST_SAVED = 'LAST_SAVED'
 const SOURCES = 'sources'
+const COMPILER_TASK = 'COMPILER_TASK'
+const COMPILED_SRC_HASH = 'COMPILED_SRC_HASH'
+const SYMEXEC_TASK = 'SYMEXEC_TASK'
+const SYMEXEC_CONTRACT = 'SYMEXEC_CONTRACT'
 
 export enum UpdateTypes {
   UPDATE_COMPILER_SETTINGS = 'UPDATE_COMPILER_SETTINGS',
   UPDATE_SYMEXEC_SETTINGS = 'UPDATE_SYMEXEC_SETTINGS',
   UPDATE_ALL_SOURCES = 'UPDATE_ALL_SOURCES',
   UPDATE_SOURCE = 'UPDATE_SOURCE',
-  REMOVE_SOURCE = 'REMOVE_SOURCE'
+  REMOVE_SOURCE = 'REMOVE_SOURCE',
+  UPDATE_COMPILER_TASK = 'UPDATE_COMPILER_TASK',
+  UPDATE_SYMEXEC_TASK = 'UPDATE_SYMEXEC_TASK',
+  UPDATE_COMPILED_SRC_HASH = 'UPDATE_COMPILED_HASH',
+  UPDATE_SYMEXEC_CONTRACT = 'UPDATE_SYMEXEC_CONTRACT'
 }
 
-export type LocalStorageUpdateAction = {type: UpdateTypes.UPDATE_COMPILER_SETTINGS} | {type: UpdateTypes.UPDATE_SYMEXEC_SETTINGS} | {type: UpdateTypes.UPDATE_ALL_SOURCES} | {type: UpdateTypes.UPDATE_SOURCE} | {type: UpdateTypes.REMOVE_SOURCE}
+export type LocalStorageUpdateAction = {type: UpdateTypes.UPDATE_COMPILER_SETTINGS} | 
+                                      {type: UpdateTypes.UPDATE_SYMEXEC_SETTINGS} | 
+                                      {type: UpdateTypes.UPDATE_ALL_SOURCES} | 
+                                      {type: UpdateTypes.UPDATE_COMPILER_TASK} |
+                                      {type: UpdateTypes.UPDATE_SYMEXEC_TASK} |
+                                      {type: UpdateTypes.UPDATE_SOURCE} | 
+                                      {type: UpdateTypes.REMOVE_SOURCE} | 
+                                      {type: UpdateTypes.UPDATE_COMPILED_SRC_HASH} |
+                                      {type: UpdateTypes.UPDATE_SYMEXEC_CONTRACT}
 
 export interface LocalStorageState {
   [COMPILER_SETTINGS]: CompilerSettings;
   [SYMEXEC_SETTINGS]: SymexecSettings;
   [SOURCES]: SourceContent[]
+  [COMPILER_TASK]: TaskStatus | null;
+  [SYMEXEC_TASK]: TaskStatus | null;
+  [COMPILED_SRC_HASH]: {
+    [contract: string]: number
+  };
+  [SYMEXEC_CONTRACT]: string | null
   [VERSION]: number;
 }
 
@@ -42,20 +68,42 @@ export interface Payload {
   sources: SourceContent[];
 }
 
+export interface Payload {
+  taskStatus: TaskStatus | null;
+}
+
+export interface Payload {
+  compiledSourceHash: {
+    [contract: string]: number
+  }
+}
+
+export interface Payload {
+  symexecContract: string | null;
+}
+
 const LocalStorageContext = createContext<[LocalStorageState | undefined, 
                                               {
                                                 updateCompilerSettings: ((settings: any) => void) | undefined, 
                                                 updateSymexecSettings: ((settings: any) => void) | undefined, 
                                                 updateAllSources: ((sources: SourceContent[]) => void) | undefined,
                                                 updateSource: ((index: number, source: SourceContent) => void) | undefined, 
-                                                removeSource: ((index: number) => void) | undefined
+                                                removeSource: ((index: number) => void) | undefined,
+                                                updateCompilerTask: ((taskStatus: TaskStatus | null) => void) | undefined,
+                                                updateSymexecTask: ((taskStatus: TaskStatus | null) => void) | undefined,
+                                                updateCompiledSourceHash: ((compiledSourceHash: {[contract: string]: number}) => void) | undefined,
+                                                updateSymexecContract: ((symexecContract: string | null) => void) | undefined,
                                               }]>([undefined, 
                                                     {
                                                       updateCompilerSettings: undefined, 
                                                       updateSymexecSettings: undefined,
                                                       updateAllSources: undefined, 
                                                       updateSource: undefined, 
-                                                      removeSource: undefined
+                                                      removeSource: undefined,
+                                                      updateCompilerTask: undefined,
+                                                      updateSymexecTask: undefined,
+                                                      updateCompiledSourceHash: undefined,
+                                                      updateSymexecContract: undefined
                                                     }]);
 
 export function useLocalStorageContext() {
@@ -122,6 +170,8 @@ function reducer(state: LocalStorageState, { type, payload }: { type: UpdateType
 
       newSources[index] = source
 
+      console.log("Updated source!")
+
       return {
         ...state,
         [SOURCES]: [
@@ -146,6 +196,54 @@ function reducer(state: LocalStorageState, { type, payload }: { type: UpdateType
         [SOURCES]: [
           ...newSources
         ]
+      }
+    }
+
+    case UpdateTypes.UPDATE_COMPILER_TASK: {
+      if (!payload) {
+        throw Error(`Payload is undefined or null!`)
+      }
+
+      const { taskStatus } = payload
+      return {
+        ...state,
+        [COMPILER_TASK]: taskStatus
+      }
+    }
+
+    case UpdateTypes.UPDATE_SYMEXEC_TASK: {
+      if (!payload) {
+        throw Error(`Payload is undefined or null!`)
+      }
+
+      const { taskStatus } = payload
+      return {
+        ...state,
+        [SYMEXEC_TASK]: taskStatus
+      }
+    }
+
+    case UpdateTypes.UPDATE_COMPILED_SRC_HASH: {
+      if (!payload) {
+        throw Error(`Payload is undefined or null!`)
+      }
+
+      const {compiledSourceHash} = payload
+      return {
+        ...state,
+        [COMPILED_SRC_HASH]: compiledSourceHash
+      }
+    }
+
+    case UpdateTypes.UPDATE_SYMEXEC_CONTRACT: {
+      if (!payload) {
+        throw Error(`Payload is undefined or null!`)
+      }
+
+      const { symexecContract } = payload
+      return {
+        ...state,
+        [SYMEXEC_CONTRACT]: symexecContract
       }
     }
 
@@ -185,7 +283,11 @@ function init() {
       [SYMEXEC_ONCHAIN_ADDRESS]: ""
     } as SymexecSettings,
     [SOURCES]: [] as SourceContent[],
-    [VERSION]: CURRENT_VERSION
+    [VERSION]: CURRENT_VERSION,
+    [COMPILER_TASK]: null,
+    [SYMEXEC_TASK]: null,
+    [COMPILED_SRC_HASH]: {},
+    [SYMEXEC_CONTRACT]: null
   }
 
   try {
@@ -229,14 +331,34 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.REMOVE_SOURCE, payload: { index } as Payload }  )
   }, [])
 
+  const updateCompilerTask = useCallback((taskStatus) => {
+    dispatch({ type: UpdateTypes.UPDATE_COMPILER_TASK, payload: { taskStatus } as Payload }  )
+  }, [])
+
+  const updateSymexecTask = useCallback((taskStatus) => {
+    dispatch({ type: UpdateTypes.UPDATE_SYMEXEC_TASK, payload: { taskStatus } as Payload }  )
+  }, [])
+
+  const updateCompiledSourceHash = useCallback((compiledSourceHash) => {
+    dispatch({ type: UpdateTypes.UPDATE_COMPILED_SRC_HASH, payload: { compiledSourceHash } as Payload }  )
+  }, [])
+
+  const updateSymexecContract = useCallback((symexecContract) => {
+    dispatch({ type: UpdateTypes.UPDATE_SYMEXEC_CONTRACT, payload: { symexecContract } as Payload }  )
+  }, [])
+
   return (
     <LocalStorageContext.Provider
-      value={useMemo(() => [state, { updateCompilerSettings, updateSymexecSettings, updateAllSources, updateSource, removeSource }], [
+      value={useMemo(() => [state, { updateCompilerSettings, updateSymexecSettings, updateAllSources, updateSource, removeSource, updateCompilerTask, updateSymexecTask, updateCompiledSourceHash, updateSymexecContract }], [
         state,
         updateCompilerSettings,
         updateSymexecSettings,
         updateSource,
-        removeSource
+        removeSource,
+        updateCompilerTask,
+        updateSymexecTask,
+        updateCompiledSourceHash,
+        updateSymexecContract
       ])}
     >
       {children}
@@ -245,7 +367,7 @@ export default function Provider({ children }: {children: any}) {
 }
 
 export function Updater() {
-  const [state] = useLocalStorageContext()
+  const [state, ] = useLocalStorageContext()
 
   useEffect(() => {
     window.localStorage.setItem(SOLBOLT, JSON.stringify({ ...state, [LAST_SAVED]: Math.floor(Date.now() / 1000) }))
@@ -332,4 +454,72 @@ export function useSourceContentManager() {
     updateSourceContent: ((index: number, source: SourceContent) => void), 
     removeSourceContent: ((index: number) => void)
   }]
+}
+
+export function useCompilerTaskManager() {
+  const [state, {updateCompilerTask}] = useLocalStorageContext()
+
+  const compilerTask = safeAccess(state, [COMPILER_TASK], null) as (TaskStatus | null)
+
+  const _updateCompilerTask = useCallback(
+    (taskStatus) => {
+      if (updateCompilerTask) {
+        updateCompilerTask(taskStatus)
+      }
+    },
+    [updateCompilerTask]
+  )
+
+  return [compilerTask, _updateCompilerTask] as [(TaskStatus | null), ((taskStatus: TaskStatus | null) => void)]
+}
+
+export function useSymexecTaskManager() {
+  const [state, {updateSymexecTask}] = useLocalStorageContext()
+
+  const symexecTask = safeAccess(state, [SYMEXEC_TASK], null) as (TaskStatus | null)
+
+  const _updateSymexecTask = useCallback(
+    (taskStatus) => {
+      if (updateSymexecTask) {
+        updateSymexecTask(taskStatus)
+      }
+    }, 
+    [updateSymexecTask]
+  )
+
+  return [symexecTask, _updateSymexecTask] as [(TaskStatus | null), ((taskStatus: TaskStatus | null) => void)]
+}
+
+export function useCompiledSourceHashManager() {
+  const [state, {updateCompiledSourceHash}] = useLocalStorageContext()
+
+  const compiledSourceHash = safeAccess(state, [COMPILED_SRC_HASH]) as {[contract: string]: number}
+
+  const _updateCompiledSourceHash = useCallback(
+    (newCompiledSourceHash) => {
+      if (updateCompiledSourceHash) {
+        updateCompiledSourceHash(newCompiledSourceHash)
+      }
+    }, 
+    [updateCompiledSourceHash]
+  )
+
+  return [compiledSourceHash, _updateCompiledSourceHash] as [({[contract: string]: number}), ((compiledSourceHash: {[contract: string]: number}) => void)]
+}
+
+export function useSymexecContractManager() {
+  const [state, {updateSymexecContract}] = useLocalStorageContext()
+
+  const symexecContract = safeAccess(state, [SYMEXEC_CONTRACT], null) as (string | null)
+
+  const _updateSymexecContract = useCallback(
+    (newSymexecContract) => {
+      if (updateSymexecContract) {
+        updateSymexecContract(newSymexecContract)
+      }
+    }, 
+    [updateSymexecContract]
+  )
+
+  return [symexecContract, _updateSymexecContract] as [(string | null), ((updateSymexecContract: string | null) => void)]
 }

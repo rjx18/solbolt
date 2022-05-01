@@ -28,7 +28,7 @@ import { isEmpty } from '../../utils'
 
 import Tabs from '@mui/material/Tabs';
 import MuiTab from '@mui/material/Tab';
-import { useSourceContentManager } from '../../contexts/LocalStorage'
+import { useSourceContentManager, useSymexecTaskManager } from '../../contexts/LocalStorage'
 
 interface AssemblyPaneProps {
     setError: (_error: string) => void
@@ -107,7 +107,9 @@ function AssemblyPane(props: AssemblyPaneProps) {
 
     const compiledChildRef = useRef<any>();
 
-    const [isExecuting, setIsExecuting] = useState(false)
+    const [symexecTask, ] = useSymexecTaskManager()
+    
+    const isExecuting = symexecTask != null
 
     const [sourceContents, ] = useSourceContentManager()
 
@@ -115,25 +117,10 @@ function AssemblyPane(props: AssemblyPaneProps) {
 
     const handleSymExec = () => {
         if (sourceRef.current && remoteSymExec) {
-          setIsExecuting(true)
+          sourceRef.current.updateSourceContentAndState()
 
-          let compileSources = {} as {[index: number]: EVMSource}
-        
-          for (const index in sourceContents) {
-              compileSources[index] = {
-                  name: sourceContents[index][SOURCE_FILENAME],
-                  sourceText: sourceContents[index][SOURCE_LAST_SAVED_VALUE]
-              }
-          }
-
-          compileSources[solidityTab].sourceText = sourceRef.current.getSourceValue()
-
-          remoteSymExec(compileSources).catch((r: Error) => {
-            console.log(r)
-            setError(r.message)
-          }).finally(() => {
-            setIsExecuting(false)
-          })
+          remoteSymExec()
+          updateSettingsPaneOpen(1)
         }
     }
 
@@ -172,17 +159,21 @@ function AssemblyPane(props: AssemblyPaneProps) {
                                 </Tooltip>
                             </Grid>
                             <Grid item>
-                                <SquareIconButton onClick={handleOpenSymexecSettings}>
-                                    <SettingsIcon htmlColor={grey[600]} />
-                                </SquareIconButton>
+                                <Tooltip title="Symbolic execution options">
+                                    <SquareIconButton onClick={handleOpenSymexecSettings}>
+                                        <SettingsIcon htmlColor={grey[600]} />
+                                    </SquareIconButton>
+                                </Tooltip>
                             </Grid>
                             <Grid item>
-                                <SquareIconButton disabled={isExecuting} onClick={handleSymExec} >
-                                    {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]}/> :
-                                    <Box display="flex" alignItems="center" justifyContent="center">
-                                        <CircularProgress size={15} style={{color: red[500]}} />
-                                    </Box>}
-                                </SquareIconButton>
+                                <Tooltip title={"Symbolically execute " + contractName}>
+                                    <SquareIconButton disabled={isExecuting} onClick={handleSymExec} >
+                                        {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]}/> :
+                                        <Box display="flex" alignItems="center" justifyContent="center">
+                                            <CircularProgress size={15} style={{color: red[500]}} />
+                                        </Box>}
+                                    </SquareIconButton>
+                                </Tooltip>
                             </Grid>
                         </Grid>
                     </Box>
