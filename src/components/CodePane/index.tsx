@@ -62,7 +62,9 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
     if (onMounted) {
       onMounted()
     }
-   
+
+    renderDecorations()
+    generateMouseHandlers()
     // var bindFreeze = editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_Q, function() {
     //   toggleFreezeHover()
     // });
@@ -103,13 +105,17 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
     }
   }
 
-  useEffect(() => {
+  const generateMouseHandlers = () => {
     if (editorRef.current) {
       if (mouseHandlerRef.current) {
         mouseHandlerRef.current.dispose()
       }
       mouseHandlerRef.current = editorRef.current.onMouseMove(handleMouseMove);
     }
+  }
+
+  useEffect(() => {
+    generateMouseHandlers()
   }, [mappings, highlightedClass, freezeHover, solidityTab]);
   
   useEffect(() => {
@@ -230,7 +236,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
     return generatedDeltaDecorations
   }
 
-  useEffect(() => {
+  const renderDecorations = () => {
     if (editorRef.current && monacoRef.current && mappings) {
 
       if (highlightedClass && mappings[highlightedClass.className]) {
@@ -279,6 +285,10 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
       decorationsRef.current = updatedDecorations
 
     }
+  }
+
+  useEffect(() => {
+    renderDecorations()
   }, [mappings, highlightedClass, showGasMetrics, solidityTab]);
 
   return <Editor

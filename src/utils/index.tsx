@@ -1,15 +1,16 @@
-import { CompilerSettings, ContractJSON, ContractMappings, EVMMap, EVMSource, SymexecSettings, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_ONCHAIN_ADDRESS } from "../types"
+import { CompilerSettings, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_INLINER, COMPILER_VERSION, COMPILER_VIAIR, ContractJSON, ContractMappings, EVMMap, EVMSource, SourceContent, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SymexecSettings, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_ONCHAIN_ADDRESS } from "../types"
 import axios from 'axios'
-import { ETHERSCAN_API_ENDPOINT, ETHERSCAN_API_KEY, OUTPUT_FILE_NAME } from "../constants"
+import { BACKEND_URL, ETHERSCAN_API_ENDPOINT, ETHERSCAN_API_KEY, OUTPUT_FILE_NAME } from "../constants"
 import { keccak256 } from 'js-sha3'
+import semver from 'semver'
 
-export function safeAccess(object: any, path: any[]) {
+export function safeAccess(object: any, path: any[], defaultValue: any = {}) {
   return object
     ? path.reduce(
-        (accumulator, currentValue) => (accumulator != null && accumulator[currentValue] != null ? accumulator[currentValue] : {}),
+        (accumulator, currentValue) => (accumulator != null && accumulator[currentValue] != null ? accumulator[currentValue] : defaultValue),
         object
       )
-    : {}
+    : defaultValue
 }
 
 export const hashString = function(str: string, seed = 0) {
@@ -27,6 +28,10 @@ export const hashString = function(str: string, seed = 0) {
 
 export const isEmpty = (object: any) => {
   return object == null || (Object.keys(object).length === 0 && Object.getPrototypeOf(object) === Object.prototype)
+}
+
+export function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export const prettifyGas = (gas: number) => {
@@ -105,7 +110,7 @@ interface LegacyEVM {
   }
 }
 
-export const parseLegacyEVMMappings = (sources: {[index: number]: EVMSource}, compiledJSON: any) => {
+export const parseLegacyEVMMappings = (sources: SourceContent[], compiledJSON: any) => {
   // outputs a mapping of classes to lines
   
   let parsedMappings = {} as {
@@ -114,10 +119,8 @@ export const parseLegacyEVMMappings = (sources: {[index: number]: EVMSource}, co
 
   let sourceNameToIndex = {} as {[name: string]: number}
 
-  for (const index in sources) {
-    if (sources.hasOwnProperty(index)) {
-      sourceNameToIndex[sources[index].name] = parseInt(index)
-    }
+  for (let i = 0; i < sources.length; i++) {
+    sourceNameToIndex[sources[i][SOURCE_FILENAME]] = i
   }
 
   // get filenames with solidity tab index
@@ -130,8 +133,8 @@ export const parseLegacyEVMMappings = (sources: {[index: number]: EVMSource}, co
 
   console.log(astKeyMap)
 
-  for (const index in sources) {
-    const outputName = sources[index].name
+  for (const sourceContent of sources) {
+    const outputName = sourceContent[SOURCE_FILENAME]
 
     const contractNames = Object.keys(safeAccess(compiledJSON, [JSON_CONTRACTS, outputName]))
 
@@ -198,7 +201,7 @@ const _getCurrKey = (key: string, nodeSource: number | undefined, astKeyMap: {[i
   return [undefined, undefined]
 }
 
-const parseLegacyEVMSection = (sources: {[index: number]: EVMSource}, code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: {[key: string]: EVMMap}, astKeyMap: {[index: number]: ASTKey}) => {
+const parseLegacyEVMSection = (sources: SourceContent[], code: LegacyEVMNode[], filteredLinesArray: string[], codeMappings: {[key: string]: EVMMap}, astKeyMap: {[index: number]: ASTKey}) => {
   let num_tags = 0
   let hasCode = false
   
@@ -217,7 +220,7 @@ const parseLegacyEVMSection = (sources: {[index: number]: EVMSource}, code: Lega
       continue
     }
 
-    const sourceText = sources[soliditySource as number].sourceText
+    const sourceText = sources[soliditySource as number][SOURCE_LAST_SAVED_VALUE]
 
     const [startLine, startChar] = getLineCharFromOffset(sourceText, node[BEGIN])
     const [endLine, endChar] = getLineCharFromOffset(sourceText, node[END])
@@ -565,22 +568,56 @@ export function getRandomInt(max: number) {
 
 // REMOTE NETWORK REQUESTS
 
-export const compileSourceRemote = (sources: {[index: number]: EVMSource}, settings: CompilerSettings) => {
-  
-  let requestFiles = [] as any[]
+export const isVersionGTE = (targetVersion: string, currentVersion: string) => {
+  const targetVersionCleaned = semver.clean(targetVersion)
+  const currentVersionCleaned = semver.clean(currentVersion)
 
-  for (const index in sources) {
-    const currentFile = {
-      name: sources[index].name,
-      content: sources[index].sourceText
-    }
-
-    requestFiles.push(currentFile)
+  if (targetVersionCleaned == null || currentVersionCleaned == null) {
+    return true
   }
 
-  console.log(requestFiles)
+  return semver.lte(targetVersionCleaned, currentVersionCleaned) 
+}
+
+const VERSION_SENSITIVE_ATTRIBUTES = [{
+  name: COMPILER_VIAIR,
+  version: "v0.7.5",
+  detail: false
+}, {
+  name: COMPILER_DETAILS_ENABLED,
+  version: "v0.5.5",
+  detail: false
+}, {
+  name: COMPILER_INLINER,
+  version: "v0.8.2",
+  detail: true
+}]
+
+export const compileSourceRemote = (sources: SourceContent[], settings: CompilerSettings) => {
   
-  return axios.post('http://127.0.0.1:5000/compile/', {
+  let requestFiles = sources.map((s) => ({
+    name: s[SOURCE_FILENAME],
+    content: s[SOURCE_LAST_SAVED_VALUE]
+  }))
+
+  let cleanSettings = {
+    ...settings
+  } as {[key: string]: any}
+
+  const selectedVersion = cleanSettings[COMPILER_VERSION]
+
+  for (const versionSensitiveAttr of VERSION_SENSITIVE_ATTRIBUTES) {
+    if (isVersionGTE(versionSensitiveAttr.version, selectedVersion)) {
+      if (versionSensitiveAttr.detail) {
+        cleanSettings[COMPILER_DETAILS][versionSensitiveAttr.name] = false
+      } else {
+        cleanSettings[versionSensitiveAttr.name] = false
+      }
+    }
+  }
+
+  
+  return axios.post(`${BACKEND_URL}/compile/`, {
     files: requestFiles,
     settings: {
      ...settings
@@ -588,23 +625,21 @@ export const compileSourceRemote = (sources: {[index: number]: EVMSource}, setti
   })
 }
 
-export const symExecSourceRemote = (contract: string, sources: {[index: number]: EVMSource}, compiledJSON: any, settings: SymexecSettings) => {
-  let requestFiles = [] as any[]
+export const compileSourceRemoteStatus = (taskID: string) => {
+  return axios.get(`${BACKEND_URL}/compile/${taskID}`)
+}
 
+export const symExecSourceRemote = (contract: string, sources: SourceContent[], compiledJSON: any, settings: SymexecSettings) => {
   if (settings[SYMEXEC_ENABLE_ONCHAIN] && !isAddress(settings[SYMEXEC_ONCHAIN_ADDRESS])) {
-    throw new Error("Invalid onchain address for symbolic execution")
+    return Promise.reject(new Error("Invalid onchain address for symbolic execution"))
   }
 
-  for (const index in sources) {
-    const currentFile = {
-      name: sources[index].name,
-      content: sources[index].sourceText
-    }
+  let requestFiles = sources.map((s) => ({
+    name: s[SOURCE_FILENAME],
+    content: s[SOURCE_LAST_SAVED_VALUE]
+  }))
 
-    requestFiles.push(currentFile)
-  }
-  
-  return axios.post('http://127.0.0.1:5000/sym/', {
+  console.log({
     files: requestFiles,
     json: JSON.stringify(compiledJSON),
     settings: {
@@ -612,6 +647,19 @@ export const symExecSourceRemote = (contract: string, sources: {[index: number]:
     },
     contract: contract
   })
+  
+  return axios.post(`${BACKEND_URL}/sym/`, {
+    files: requestFiles,
+    json: JSON.stringify(compiledJSON),
+    settings: {
+      ...settings
+    },
+    contract: contract
+  })
+}
+
+export const symExecSourceRemoteStatus = (taskID: string) => {
+  return axios.get(`${BACKEND_URL}/sym/${taskID}`)
 }
 
 export const etherscanLoader = (address: string) => {

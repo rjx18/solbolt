@@ -20,6 +20,8 @@ export const OUTPUT_FILE_NAME = 'output.sol'
 export const ETHERSCAN_API_KEY = process.env.REACT_APP_SOLBOLT_ETHERSCAN_KEY
 export const ETHERSCAN_API_ENDPOINT = 'https://api.etherscan.io/api'
 
+export const BACKEND_URL = process.env.NODE_ENV === "development" ? 'http://127.0.0.1:5000' : 'https://api.solbolt.com'
+
 export const SOLC_BINARIES = [
   'v0.8.13+commit.abaa5c0e',
   'v0.8.12+commit.f00d7308',

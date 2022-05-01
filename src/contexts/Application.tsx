@@ -7,20 +7,26 @@ const SHOW_GAS_METRICS = 'SHOW_GAS_METRICS'
 const FREEZE_HOVER = 'FREEZE_HOVER'
 const ASSEMBLY_TAB_OPEN = 'ASSEMBLY_TAB_OPEN'
 const SOLIDITY_TAB_OPEN = 'SOLIDITY_TAB_OPEN'
+const COMPILER_ERROR = 'COMPILER_ERROR'
+const SYMEXEC_ERROR = 'SYMEXEC_ERROR'
 
 export enum UpdateTypes {
   UPDATE_SETTINGS_TAB_OPEN = 'UPDATE_SETTINGS_TAB_OPEN',
   TOGGLE_SHOW_GAS_METRICS = 'TOGGLE_SHOW_GAS_METRICS',
   TOGGLE_FREEZE_HOVER = 'TOGGLE_FREEZE_HOVER',
   UPDATE_ASSEMBLY_TAB_OPEN = 'UPDATE_ASSEMBLY_TAB_OPEN',
-  UPDATE_SOLIDITY_TAB_OPEN = 'UPDATE_SOLIDITY_TAB_OPEN'
+  UPDATE_SOLIDITY_TAB_OPEN = 'UPDATE_SOLIDITY_TAB_OPEN',
+  UPDATE_COMPILER_ERROR = 'UPDATE_COMPILER_ERROR',
+  UPDATE_SYMEXEC_ERROR = 'UPDATE_SYMEXEC_ERROR'
 }
 
 export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN} | 
           {type: UpdateTypes.TOGGLE_SHOW_GAS_METRICS} | 
           {type: UpdateTypes.TOGGLE_FREEZE_HOVER} |
           {type: UpdateTypes.UPDATE_ASSEMBLY_TAB_OPEN} | 
-          {type: UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN}
+          {type: UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN} |
+          {type: UpdateTypes.UPDATE_COMPILER_ERROR} |
+          {type: UpdateTypes.UPDATE_SYMEXEC_ERROR}
 
 export interface ApplicationState {
   [SETTINGS_TAB_OPEN]: number;
@@ -28,10 +34,16 @@ export interface ApplicationState {
   [FREEZE_HOVER]: boolean;
   [ASSEMBLY_TAB_OPEN]: number;
   [SOLIDITY_TAB_OPEN]: number;
+  [COMPILER_ERROR]: string | null;
+  [SYMEXEC_ERROR]: string | null;
 }
 
 export interface Payload {
   updatedTab: number;
+}
+
+export interface Payload {
+  error: string | null;
 }
 
 const ApplicationContext = createContext<[ApplicationState | undefined, {
@@ -40,12 +52,16 @@ const ApplicationContext = createContext<[ApplicationState | undefined, {
     toggleFreezeHover: (() => void) | undefined,
     updateAssemblyTabOpen: ((updatedTab: number) => void) | undefined, 
     updateSolidityTabOpen: ((updatedTab: number) => void) | undefined, 
+    updateCompilerError: ((error: string) => void) | undefined,
+    updateSymexecError: ((error: string) => void) | undefined
   }]>([undefined, {
     updateSettingsTabOpen: undefined, 
     toggleShowGasMetrics: undefined,
     toggleFreezeHover: undefined,
     updateAssemblyTabOpen: undefined,
-    updateSolidityTabOpen: undefined
+    updateSolidityTabOpen: undefined,
+    updateCompilerError: undefined,
+    updateSymexecError: undefined
   }]);
 
 export function useApplicationContext() {
@@ -95,6 +111,28 @@ function reducer(state: ApplicationState, { type, payload }: { type: UpdateTypes
       }
     }
 
+    case UpdateTypes.UPDATE_COMPILER_ERROR: {
+      if (!payload) {
+        throw Error(`No error included in payload!`)
+      }
+      const { error } = payload
+      return {
+        ...state,
+        [COMPILER_ERROR]: error
+      }
+    }
+
+    case UpdateTypes.UPDATE_SYMEXEC_ERROR: {
+      if (!payload) {
+        throw Error(`No error included in payload!`)
+      }
+      const { error } = payload
+      return {
+        ...state,
+        [SYMEXEC_ERROR]: error
+      }
+    }
+
     default: {
       throw Error(`Unexpected action type in ApplicationContext reducer: '${type}'.`)
     }
@@ -107,7 +145,9 @@ export default function Provider({ children }: {children: any}) {
     [SHOW_GAS_METRICS]: true,
     [FREEZE_HOVER]: false,
     [ASSEMBLY_TAB_OPEN]: 0,
-    [SOLIDITY_TAB_OPEN]: 0
+    [SOLIDITY_TAB_OPEN]: 0,
+    [COMPILER_ERROR]: null,
+    [SYMEXEC_ERROR]: null
   })
 
   const updateSettingsTabOpen = useCallback((updatedTab) => {
@@ -130,15 +170,25 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN, payload: { updatedTab } as Payload })
   }, [])
 
+  const updateCompilerError = useCallback((error) => {
+    dispatch({ type: UpdateTypes.UPDATE_COMPILER_ERROR, payload: { error } as Payload })
+  }, [])
+
+  const updateSymexecError = useCallback((error) => {
+    dispatch({ type: UpdateTypes.UPDATE_SYMEXEC_ERROR, payload: { error } as Payload })
+  }, [])
+
   return (
     <ApplicationContext.Provider
-      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover, updateAssemblyTabOpen, updateSolidityTabOpen }], [
+      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover, updateAssemblyTabOpen, updateSolidityTabOpen, updateCompilerError, updateSymexecError }], [
         state,
         updateSettingsTabOpen,
         toggleShowGasMetrics,
         toggleFreezeHover,
         updateAssemblyTabOpen,
-        updateSolidityTabOpen
+        updateSolidityTabOpen,
+        updateCompilerError,
+        updateSymexecError
       ])}
     >
       {children}
@@ -240,4 +290,42 @@ export function useSolidityTabOpenManager() {
   return [
     solidityTabOpen, _updateSolidityTabOpen, 
   ] as [number, (solidityTab: number) => void ]
+}
+
+export function useCompilerErrorManager() {
+  const [state, {updateCompilerError}] = useApplicationContext()
+
+  const compilerError = safeAccess(state, [COMPILER_ERROR], null)
+
+  const _updateCompilerError = useCallback(
+    error => {
+      if (updateCompilerError) {
+        updateCompilerError(error)
+      }
+    },
+    [updateCompilerError]
+  )
+
+  return [
+    compilerError, _updateCompilerError, 
+  ] as [string | null, (error: string | null) => void ]
+}
+
+export function useSymexecErrorManager() {
+  const [state, {updateSymexecError}] = useApplicationContext()
+
+  const symexecError = safeAccess(state, [SYMEXEC_ERROR], null)
+
+  const _updateSymexecError = useCallback(
+    error => {
+      if (updateSymexecError) {
+        updateSymexecError(error)
+      }
+    },
+    [updateSymexecError]
+  )
+
+  return [
+    symexecError, _updateSymexecError, 
+  ] as [string | null, (error: string | null) => void ]
 }

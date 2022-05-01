@@ -3,12 +3,14 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 
-import ContractsContextProvider from './contexts/Contracts'
-import MappingsContextProvider from './contexts/Mappings'
+import ContractsContextProvider, { Updater as ContractsContextUpdater } from './contexts/Contracts'
+import MappingsContextProvider, { Updater as MappingsContextUpdater } from './contexts/Mappings'
 import DecorationsContextProvider from './contexts/Decorations'
 import LocalStorageContextProvider, { Updater as LocalStorageContextUpdater } from './contexts/LocalStorage'
 import ApplicationContextProvider from './contexts/Application'
 import SourcesContextProvider from './contexts/Sources'
+import CompilationUpdater from './updaters/CompilationUpdater';
+import SymexecUpdater from './updaters/SymexecUpdater';
 
 function ContextProviders({ children }: { children: any }) {
   return (
@@ -32,6 +34,10 @@ function Updaters() {
   return (
     <>
       <LocalStorageContextUpdater />
+      <CompilationUpdater />
+      <MappingsContextUpdater />
+      <SymexecUpdater />
+      <ContractsContextUpdater />
     </>
   )
 }

@@ -22,7 +22,7 @@ import SolidityPane from '../../components/SolidityPane';
 import AssemblyPane from '../../components/AssemblyPane';
 import { isNullOrUndefined } from 'util';
 import SettingsPane from '../../components/SettingsPane';
-import { useToggleFreezeHoverManager } from '../../contexts/Application';
+import { useCompilerErrorManager, useSymexecErrorManager, useToggleFreezeHoverManager } from '../../contexts/Application';
 
 const CenteredBox = styled(Box)(({ theme }) => ({
   margin: "auto",
@@ -34,6 +34,9 @@ function CompilerPage() {
 
   const [error, setError] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+
+  const [compilerError, ] = useCompilerErrorManager()
+  const [symexecError, ] = useSymexecErrorManager()
 
   const sourceChildRef = useRef<any>();
 
@@ -60,6 +63,17 @@ function CompilerPage() {
       window.removeEventListener('keydown', handleFreeze);
     };
   }, []);
+
+  useEffect(() => {
+    if (compilerError != null) {
+      setErrorMessage(compilerError)
+      setError(true)
+    } else if (symexecError != null) {
+      setErrorMessage(symexecError)
+      setError(true)
+    }
+  }, [compilerError, symexecError])
+  
 
 
   return <>

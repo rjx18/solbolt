@@ -56,10 +56,9 @@ function Inspector() {
   const gasSummary = useGasSummary(contractName)
   const functionSummary = useFunctionSummary(contractName)
 
-  console.log("FN Summary")
-  console.log(functionSummary)
+  const showInspector = mappings.hasSymExec
 
-  console.log(highlightedClass.className)
+  console.log(showInspector ? "Show inspector" : "No show inspector")
 
   let parsedGasSummary = Object.keys(GAS_MAP_LABELS).slice(1).map((key) => {
     if (gasSummary == null) {
@@ -173,46 +172,54 @@ function Inspector() {
   return (
     <Box>
       <Typography variant="button" sx={{fontSize: "12pt"}}>Inspector</Typography>
-      <Box py={3}>
-        <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Gas Heatmap</Typography>
-        <Box pt={1}>
-          {(mappings.hasSymExec) && generateHeatMap()}
-        </Box>
+      {showInspector ? 
+        <Box py={3}>
+          <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Gas Heatmap</Typography>
+          <Box pt={1}>
+            {(mappings.hasSymExec) && generateHeatMap()}
+          </Box>
 
-        <Box pt={5}>
-          <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Gas Histogram</Typography>
-          <ResponsiveContainer width="95%" height={250}>
-            <BarChart data={parsedGasSummary}>
-              <XAxis dataKey="name" angle={75} height={120} textAnchor="start" interval={0} style={{fontSize: '9pt'}}/>
-              <RechartsTooltip />
-              <Bar dataKey="count" radius={[7, 7, 0, 0]}>
-                {
-                  parsedGasSummary.map((entry, index) => (
-                    <Cell key={`gas-cell-${index}`} fill={entry.class === highlightedClassName ? GAS_HISTOGRAM_COLORS[highlightedClassName] : '#e6e6e6'} stroke={'#707070'}  strokeWidth={1}/>
-                  ))
-                }
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Box>
+          <Box pt={5}>
+            <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Gas Histogram</Typography>
+            <ResponsiveContainer width="95%" height={250}>
+              <BarChart data={parsedGasSummary}>
+                <XAxis dataKey="name" angle={75} height={120} textAnchor="start" interval={0} style={{fontSize: '9pt'}}/>
+                <RechartsTooltip />
+                <Bar dataKey="count" radius={[7, 7, 0, 0]}>
+                  {
+                    parsedGasSummary.map((entry, index) => (
+                      <Cell key={`gas-cell-${index}`} fill={entry.class === highlightedClassName ? GAS_HISTOGRAM_COLORS[highlightedClassName] : '#e6e6e6'} stroke={'#707070'}  strokeWidth={1}/>
+                    ))
+                  }
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
 
-        <Box pt={5}>
-          <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Function Analysis</Typography>
-          <ResponsiveContainer width="95%" height={250}>
-            <BarChart data={parsedFunctionSummary}>
-              <XAxis dataKey="name" angle={75} height={120} textAnchor="start" interval={0} style={{fontSize: '9pt'}}/>
-              <RechartsTooltip />
-              <Bar dataKey="worst case gas" radius={[7, 7, 0, 0]}>
-                {
-                  parsedFunctionSummary.map((entry, index) => (
-                    <Cell key={`function-cell-${index}`} fill={entry.class === highlightedClass.className ? '#d44c4c' : '#e6e6e6'} stroke={'#707070'}  strokeWidth={1}/>
-                  ))
-                }
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <Box pt={5}>
+            <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Function Analysis</Typography>
+            <ResponsiveContainer width="95%" height={250}>
+              <BarChart data={parsedFunctionSummary}>
+                <XAxis dataKey="name" angle={75} height={120} textAnchor="start" interval={0} style={{fontSize: '9pt'}}/>
+                <RechartsTooltip />
+                <Bar dataKey="worst case gas" radius={[7, 7, 0, 0]}>
+                  {
+                    parsedFunctionSummary.map((entry, index) => (
+                      <Cell key={`function-cell-${index}`} fill={entry.class === highlightedClass.className ? '#d44c4c' : '#e6e6e6'} stroke={'#707070'}  strokeWidth={1}/>
+                    ))
+                  }
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
         </Box>
-      </Box>
+        :
+        <Alert severity='warning' sx={{my: 3}}>
+          <AlertTitle>Not executed yet</AlertTitle>
+          You need to symbolically execute a contract first to view the 
+          gas analysis results here.
+        </Alert>
+      }
     </Box>
   )
 }
