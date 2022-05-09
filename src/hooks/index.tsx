@@ -133,8 +133,6 @@ export const useAddressLoader = () => {
       if (address) {
         return etherscanLoader(address).then((r) => {
           if (r.status === 200) {
-            console.log("Loaded address from etherscan")
-            console.log(r.data)
 
             const response = r.data
 
