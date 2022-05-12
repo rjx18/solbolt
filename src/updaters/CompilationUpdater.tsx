@@ -9,7 +9,7 @@ import { useRemoveAllMappings, useUpdateAllMappings } from '../contexts/Mappings
 import { useCompilerTaskManager, useSourceContentManager } from '../contexts/LocalStorage'
 
 const COMPILATION_POLL_INTERVAL = 500
-const MAX_POLL_INTERVAL = 30000
+const MAX_POLL_INTERVAL = 1000
 
 function CompilationUpdater() {
   const [, updateCompilerError] = useCompilerErrorManager()

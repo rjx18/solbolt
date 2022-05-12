@@ -8,8 +8,8 @@ import { useRemoveHiglightedClass } from '../contexts/Decorations'
 import { useMappings, useRemoveAllMappings, useUpdateAllMappings } from '../contexts/Mappings'
 import { useSymexecTaskManager, useSourceContentManager, useSymexecContractManager } from '../contexts/LocalStorage'
 
-const SYMEXEC_POLL_INTERVAL = 5000
-const MAX_POLL_INTERVAL = 60000
+const SYMEXEC_POLL_INTERVAL = 1000
+const MAX_POLL_INTERVAL = 5000
 
 interface SymexecUpdaterForContractInterface {
   contract: string

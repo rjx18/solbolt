@@ -103,6 +103,7 @@ export const SYMEXEC_LOOPBOUND = 'loop_bound'
 export const SYMEXEC_TX = 'transaction_count'
 export const SYMEXEC_ENABLE_ONCHAIN = 'enable_onchain'
 export const SYMEXEC_ONCHAIN_ADDRESS = 'onchain_address'
+export const SYMEXEC_IGNORE_CONSTRAINTS = 'ignore_constraints'
 
 export interface SymexecSettings {
   [SYMEXEC_MAXDEPTH]: number
@@ -112,6 +113,7 @@ export interface SymexecSettings {
   [SYMEXEC_TX]: number
   [SYMEXEC_ENABLE_ONCHAIN]: boolean
   [SYMEXEC_ONCHAIN_ADDRESS]: string
+  [SYMEXEC_IGNORE_CONSTRAINTS]: boolean
 }
 
 export const SOURCE_MODEL = "SOURCE_MODEL"

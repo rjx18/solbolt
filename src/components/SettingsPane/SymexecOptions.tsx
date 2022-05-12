@@ -9,7 +9,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import FormControl from '@mui/material/FormControl';
 import Select, { SelectChangeEvent } from '@mui/material/Select';
-import { SYMEXEC_CALLDEPTH, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_ONCHAIN_ADDRESS, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../../types'
+import { SYMEXEC_CALLDEPTH, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_IGNORE_CONSTRAINTS, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_ONCHAIN_ADDRESS, SYMEXEC_STRATEGY, SYMEXEC_TX } from '../../types'
 import TextField from '@mui/material/TextField';
 import NumberFormat from 'react-number-format'
 import Tooltip from '@mui/material/Tooltip';
@@ -25,6 +25,7 @@ import AccordionDetails from '@mui/material/AccordionDetails';
 import Switch from '@mui/material/Switch';
 import CircularProgress from '@mui/material/CircularProgress'
 import { useSymexecErrorManager } from '../../contexts/Application'
+import FormControlLabel from '@mui/material/FormControlLabel';
 
 function NumberFormatCustom(props: any) {
   const { inputRef, onChange, ...other } = props;
@@ -121,6 +122,17 @@ function SymexecOptions() {
     }
 
     updateSymexecSettings(newSymexecSettings)
+  }
+
+  const handleCheckedChange = (option: string) => {
+    return (event: any) => {
+      const newSymexecSettings = {
+        ...symexecSettings,
+        [option]: event.target.checked
+      }
+
+      updateSymexecSettings(newSymexecSettings)
+    }
   }
 
   const getSymexecAlert = () => {
@@ -256,6 +268,14 @@ function SymexecOptions() {
                 }}
               />
             </Box>
+          </Tooltip>
+          <Tooltip title="When enabled, the symbolic engine will ignore any satisfiability constraints, and instead execute every possible path regardless of whether they are reachable or not.">
+            <FormControlLabel 
+              sx={{pt: 2}} 
+              control={<Switch />} 
+              checked={symexecSettings[SYMEXEC_IGNORE_CONSTRAINTS]} 
+              onChange={handleCheckedChange(SYMEXEC_IGNORE_CONSTRAINTS)} 
+              label="Ignore constraints" labelPlacement='end' />
           </Tooltip>
           <Box pt={2}>
             <Tooltip title="Uses the concrete onchain storage state instead of a symbolic storage state while executing">
