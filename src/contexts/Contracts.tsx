@@ -206,8 +206,12 @@ export function useContractNames() {
   return contractNames
 }
 
-export function useContract(contract: string) {
+export function useContract(contract: string | undefined) {
   const [state] = useContractsContext();
+
+  if (contract == null) {
+    return {} as ContractJSON
+  }
 
   for (const filename in safeAccess(state, [CONTRACTS])) {
     if (Object.keys(safeAccess(state, [CONTRACTS, filename])).includes(contract)) {

@@ -30,12 +30,13 @@ export interface Payload {
   }
   filteredLines: string
   hasSymExec: boolean
+  covPercentage?: number
 }
 
 const MappingsContext = createContext<
   [MappingsState | undefined, {
     updateMapping: ((contract: string, key: string, evmMap: string) => void) | undefined, 
-    updateAllMappings: ((contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string, hasSymExec: boolean) => void) | undefined,
+    updateAllMappings: ((contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string, hasSymExec: boolean, covPercentage?: number) => void) | undefined,
     removeAllMappings: (() => void) | undefined
   }]>([undefined, {updateMapping: undefined, updateAllMappings: undefined, removeAllMappings: undefined}]);
 
@@ -66,7 +67,7 @@ function reducer(state: MappingsState, { type, payload }: { type: UpdateTypes, p
       if (!payload) {
         throw Error(`Payload is undefined or null!`)
       }
-      const { contract, allMaps, filteredLines, hasSymExec } = payload
+      const { contract, allMaps, filteredLines, hasSymExec, covPercentage } = payload
       return {
         ...state,
         [contract]: {
@@ -74,7 +75,8 @@ function reducer(state: MappingsState, { type, payload }: { type: UpdateTypes, p
             ...allMaps
           },
           filteredLines: filteredLines,
-          hasSymExec: hasSymExec
+          hasSymExec: hasSymExec,
+          covPercentage: covPercentage
         }
       }
     }
@@ -111,8 +113,8 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.UPDATE_MAPPING, payload: { contract, key, evmMap } as Payload })
   }, [])
 
-  const updateAllMappings = useCallback((contract, allMaps, filteredLines, hasSymExec) => {
-    dispatch({ type: UpdateTypes.UPDATE_ALL_MAPPINGS, payload: { contract, allMaps, filteredLines, hasSymExec } as Payload }  )
+  const updateAllMappings = useCallback((contract, allMaps, filteredLines, hasSymExec, covPercentage) => {
+    dispatch({ type: UpdateTypes.UPDATE_ALL_MAPPINGS, payload: { contract, allMaps, filteredLines, hasSymExec, covPercentage } as Payload }  )
   }, [])
 
   const removeAllMappings = useCallback(() => {
@@ -167,14 +169,14 @@ export function useUpdateAllMappings() {
   const [, { updateAllMappings }] = useMappingsContext()
 
   return useCallback(
-      (contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string, hasSymExec: boolean) => {
+      (contract: string, allMaps: {[key: string]: EVMMap}, filteredLines: string, hasSymExec: boolean, covPercentage?: number) => {
         if (
           updateAllMappings &&
           contract &&
           allMaps &&
           filteredLines
         ) {
-          updateAllMappings(contract, allMaps, filteredLines, hasSymExec)
+          updateAllMappings(contract, allMaps, filteredLines, hasSymExec, covPercentage)
         }
       },
       [updateAllMappings]
@@ -196,8 +198,12 @@ export function useRemoveAllMappings() {
 }
 
 
-export function useMappings(contract: string) {
+export function useMappings(contract: string | undefined) {
   const [state] = useMappingsContext();
+
+  if (contract == null) {
+    return undefined
+  }
 
   return safeAccess(state, [contract]) as ContractMappings
 }
@@ -215,7 +221,7 @@ export function useMappedContractNames() {
 export function useMappingsByIndex(index: number) {
   const [state] = useMappingsContext();
 
-  let contractName = "UNKNOWN"
+  let contractName = undefined
   let contractMappings = {}
 
   if (state != null) {
@@ -225,5 +231,5 @@ export function useMappingsByIndex(index: number) {
     }
   }
 
-  return [contractName, contractMappings] as [string, ContractMappings]
+  return [contractName, contractMappings] as [string | undefined, ContractMappings]
 }

@@ -119,7 +119,9 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
   }, [mappings, highlightedClass, freezeHover, solidityTab]);
   
   useEffect(() => {
+    console.log("Updated model!")
     if (model != null) {
+      console.log(model)
       editorRef.current.setModel(model);
       if (viewState != null) {
         editorRef.current.restoreViewState(viewState);
@@ -162,7 +164,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
 
     let wholeLineDecoration = undefined
 
-    if (mappingItem.loopGas != null || mappingItem.functionGas != null) {
+    if (mappingItem.loopGas != null || mappingItem.functionGas != null || mappingItem.detectedIssues != null) {
       wholeLineDecoration = { 
         range: new monacoRef.current.Range(mappingItem.sourceMap.startLine, 1, mappingItem.sourceMap.startLine, 1),
         options: { 
@@ -177,7 +179,7 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
         let loopGasMessages = []
 
         for (const pc in mappingItem.loopGas) {
-          const loopMessage = `PC ${pc}: ${mappingItem.loopGas[pc]} gas units`
+          const loopMessage = `PC ${pc}: ${mappingItem.loopGas[pc].gas.toFixed(2)} gas units${mappingItem.loopGas[pc].isHidden ? ", hidden" : ""}`
           loopGasMessages.push(loopMessage)
         }
 
@@ -192,10 +194,25 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
         wholeLineDecoration.options.glyphMarginClassName = "fa-solid fa-gas-pump"
 
         const functionGasDecoration = {
-          value: `**Function gas estimate:** ${mappingItem.functionGas} gas units`
+          value: `**Function gas estimate:** ${mappingItem.functionGas.toFixed(2)} gas units`
         }
 
         wholeLineDecoration.options.glyphMarginHoverMessage.push(functionGasDecoration)
+      }
+
+      if (mappingItem.detectedIssues != null) {
+        wholeLineDecoration.options.glyphMarginClassName = "fa-solid fa-triangle-exclamation"
+
+        for (const issue of mappingItem.detectedIssues) {
+          switch (issue) {
+            case "loop-mutation":
+              const loopMutationDecoration = {
+                value: `**Possible SSTORE or SLOAD within a loop**\n\nUnless this is a string or bytes operation, possibly able to refactor such that storage variable is updated once at the end of the loop`
+              }
+              wholeLineDecoration.options.glyphMarginHoverMessage.push(loopMutationDecoration)
+              break
+          }
+        }
       }
 
       

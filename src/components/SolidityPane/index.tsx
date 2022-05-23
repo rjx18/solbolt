@@ -149,23 +149,31 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         {
             let newSourceStates = [...sourceStates]
             let didChange = false
+            // let currentTabSource = undefined
 
             // add states for sources that are not initialised yet
             for (let i = 0; i < sourceContents.length; i++) {
                 if (i >= sourceStates.length || sourceStates[i][SOURCE_MODEL] == null) {
                     didChange = true
                     const newSourceContent = sourceContents[i][SOURCE_LAST_SAVED_VALUE]
+
+                    const newModel = handleCreateModel(newSourceContent)
+
                     newSourceStates[i] = {
-                        [SOURCE_MODEL]: handleCreateModel(newSourceContent),
+                        [SOURCE_MODEL]: newModel,
                         [SOURCE_VIEW_STATE]: undefined
                     }
+
+                    // if (i === solidityTab) {
+                    //     currentTabSource = newModel
+                    // }
                 }
             }
 
             if (didChange) {
+                console.log("updated source states!")
                 updateAllSourceStates(newSourceStates)
             }
-            
         }
     }, [mounted, sourceContents])
     
@@ -287,7 +295,7 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         if (sourceChildRef.current && addressLoad) {
             setIsLoadingFromAddress(true)
   
-            addressLoad(address, handleCreateModel).catch((r: Error) => {
+            addressLoad(address).catch((r: Error) => {
                 console.log(r)
                 setError(r.message)
             }).finally(() => {
@@ -334,30 +342,36 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
                                 </Tooltip>
                             </Grid>
                             <Grid item>
-                                <Tooltip title="Load from address">
-                                    <SquareIconButton onClick={handleLoadFromAddressOpen}>
-                                        {!isLoadingFromAddress ? <CloudDownloadIcon htmlColor={grey[600]} /> :
-                                        <Box display="flex" alignItems="center" justifyContent="center">
-                                            <CircularProgress size={15} style={{color: grey[600]}} />
-                                        </Box>}
-                                    </SquareIconButton>
+                                <Tooltip title="Load from address" >
+                                    <Box>
+                                        <SquareIconButton onClick={handleLoadFromAddressOpen}>
+                                            {!isLoadingFromAddress ? <CloudDownloadIcon htmlColor={grey[600]} /> :
+                                            <Box display="flex" alignItems="center" justifyContent="center">
+                                                <CircularProgress size={15} style={{color: grey[600]}} />
+                                            </Box>}
+                                        </SquareIconButton>
+                                    </Box>
                                 </Tooltip>
                             </Grid>
                             <Grid item>
                                 <Tooltip title="Compiler options">
-                                    <SquareIconButton onClick={handleOpenCompilerSettings}>
-                                        <SettingsIcon htmlColor={grey[600]} />
-                                    </SquareIconButton>
+                                    <Box>
+                                        <SquareIconButton onClick={handleOpenCompilerSettings}>
+                                            <SettingsIcon htmlColor={grey[600]} />
+                                        </SquareIconButton>
+                                    </Box>
                                 </Tooltip>
                             </Grid>
                             <Grid item>
                                 <Tooltip title="Compile sources">
-                                    <SquareIconButton disabled={isCompiling} onClick={handleClick}>
-                                        {!isCompiling ? <PlayArrowIcon htmlColor={green[500]} /> :
-                                        <Box display="flex" alignItems="center" justifyContent="center">
-                                            <CircularProgress size={15} style={{color: green[500]}} />
-                                        </Box>}
-                                    </SquareIconButton>
+                                    <Box>
+                                        <SquareIconButton disabled={isCompiling} onClick={handleClick}>
+                                            {!isCompiling ? <PlayArrowIcon htmlColor={green[500]} /> :
+                                            <Box display="flex" alignItems="center" justifyContent="center">
+                                                <CircularProgress size={15} style={{color: green[500]}} />
+                                            </Box>}
+                                        </SquareIconButton>
+                                    </Box>
                                 </Tooltip>
                             </Grid>
                         </Grid>

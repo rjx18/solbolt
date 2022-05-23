@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useMemo, useCallback, useEffect } from 'react'
+import { DEFAULT_COMPILER_SETTINGS, DEFAULT_SYMEXEC_SETTINGS } from '../constants'
 import { CompilerOptimizerDetails, CompilerSettings, COMPILER_CONSTANTOPTIMIZER, COMPILER_CSE, COMPILER_DEDUPLICATE, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_ENABLE, COMPILER_EVM, COMPILER_INLINER, COMPILER_JUMPDESTREMOVER, COMPILER_ORDERLITERALS, COMPILER_PEEPHOLE, COMPILER_RUNS, COMPILER_VERSION, COMPILER_VIAIR, COMPILER_YUL, EVMSource, Source, SourceContent, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SymexecSettings, SYMEXEC_CALLDEPTH, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_IGNORE_CONSTRAINTS, SYMEXEC_LOOPBOUND, SYMEXEC_MAXDEPTH, SYMEXEC_ONCHAIN_ADDRESS, SYMEXEC_STRATEGY, SYMEXEC_TX, TaskStatus } from '../types'
 
 import { compileSourceRemoteStatus, hashString, parseCompiledJSON, parseLegacyEVMMappings, safeAccess } from '../utils'
@@ -255,34 +256,8 @@ function reducer(state: LocalStorageState, { type, payload }: { type: UpdateType
 
 function init() {
   const defaultLocalStorage = {
-    [COMPILER_SETTINGS]: {
-      [COMPILER_VERSION]: 'v0.8.13+commit.abaa5c0e',
-      [COMPILER_EVM]: 'Default',
-      [COMPILER_RUNS]: 200,
-      [COMPILER_ENABLE]: true,
-      [COMPILER_VIAIR]: false,
-      [COMPILER_DETAILS_ENABLED]: false,
-      [COMPILER_DETAILS]: {
-        [COMPILER_PEEPHOLE]: true,
-        [COMPILER_INLINER]: true,
-        [COMPILER_JUMPDESTREMOVER]: true,
-        [COMPILER_ORDERLITERALS]: false,
-        [COMPILER_DEDUPLICATE]: false,
-        [COMPILER_CSE]: false,
-        [COMPILER_CONSTANTOPTIMIZER]: false,
-        [COMPILER_YUL]: false
-      } as CompilerOptimizerDetails
-    } as CompilerSettings,
-    [SYMEXEC_SETTINGS]: {
-      [SYMEXEC_MAXDEPTH]: 64,
-      [SYMEXEC_CALLDEPTH]: 16,
-      [SYMEXEC_STRATEGY]: 'bfs',
-      [SYMEXEC_LOOPBOUND]: 10,
-      [SYMEXEC_TX]: 2,
-      [SYMEXEC_ENABLE_ONCHAIN]: false,
-      [SYMEXEC_ONCHAIN_ADDRESS]: "",
-      [SYMEXEC_IGNORE_CONSTRAINTS]: true
-    } as SymexecSettings,
+    [COMPILER_SETTINGS]: DEFAULT_COMPILER_SETTINGS,
+    [SYMEXEC_SETTINGS]: DEFAULT_SYMEXEC_SETTINGS,
     [SOURCES]: [] as SourceContent[],
     [VERSION]: CURRENT_VERSION,
     [COMPILER_TASK]: null,

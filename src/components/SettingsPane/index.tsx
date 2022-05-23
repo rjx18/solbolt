@@ -19,6 +19,8 @@ import { styled } from '@mui/material/styles';
 import DialogActions from '@mui/material/DialogActions';
 import CloseIcon from '@mui/icons-material/Close';
 import DialogContent from '@mui/material/DialogContent';
+import FeedIcon from '@mui/icons-material/Feed';
+import ExamplesPane from './ExamplesPane';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -101,7 +103,6 @@ function SettingsPane() {
   }
 
 
-
   return (
     <Box width="24%" display="flex" height="100%">
       <Box flexGrow={1} height="100%" sx={{overflow: 'auto'}}>
@@ -113,12 +114,15 @@ function SettingsPane() {
         </TabPanel>
         <TabPanel value={settingsTabOpen} index={2}>
           <Inspector />
-      </TabPanel>
+        </TabPanel>
+        <TabPanel value={settingsTabOpen} index={3}>
+          <ExamplesPane />
+        </TabPanel>
       </Box>
       <Box height="100%">
         <Tabs
           orientation="vertical"
-          variant="scrollable"
+          // variant="scrollable"
           value={settingsTabOpen}
           onChange={handleChange}
           aria-label="Solbolt tab menu"
@@ -138,9 +142,10 @@ function SettingsPane() {
             // }
           }}
         >
-          <Tab icon={<CodeIcon />} {...a11yProps(0)} />
-          <Tab icon={<MemoryIcon />} {...a11yProps(1)} />
-          <Tab icon={<ManageSearchIcon />} {...a11yProps(2)} />
+          <Tab label="Compiler Options" icon={<CodeIcon />} {...a11yProps(0)} style={{fontSize: "8pt", width: 0, fontWeight: 700}} />
+          <Tab label="Symexec Options" icon={<MemoryIcon />} {...a11yProps(1)} style={{fontSize: "8pt", width: 0, fontWeight: 700}} />
+          <Tab label="Gas Inspector" icon={<ManageSearchIcon />} {...a11yProps(2)} style={{fontSize: "8pt", width: 0, fontWeight: 700}} />
+          <Tab label="Examples" icon={<FeedIcon />} {...a11yProps(3)} style={{fontSize: "8pt", width: 0, fontWeight: 700}} />
           <IconButton sx={{marginTop: "auto", width: 50, height: 50, alignSelf: "center", marginBottom: 1}} onClick={handleDialogOpen}>
             <InfoIcon />
           </IconButton>

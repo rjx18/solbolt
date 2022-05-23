@@ -60,7 +60,7 @@ export const useRemoteCompiler = () => {
   )
 };
 
-export const useRemoteSymExec = (contract: string) => {
+export const useRemoteSymExec = (contract: string | undefined) => {
 
   const compiledJSON = useCompiledJSON()
   const compiledAST = useAST()
@@ -75,7 +75,7 @@ export const useRemoteSymExec = (contract: string) => {
 
   return useCallback(
     async () => {
-      if (compiledJSON && compiledSourceHash != null && compiledAST) {
+      if (contract && compiledJSON && compiledSourceHash != null && compiledAST) {
         for (const sourceContent of sourceContents) {
           const newHash = hashString(sourceContent[SOURCE_LAST_SAVED_VALUE])
           const filename = sourceContent[SOURCE_FILENAME]
@@ -128,7 +128,7 @@ export const useAddressLoader = () => {
   const [, updateSolidityTabOpen ] = useSolidityTabOpenManager()
 
   return useCallback(
-    async (address: string, handleCreateModel: ((content: string) => any)) => {
+    async (address: string) => {
       
       if (address) {
         return etherscanLoader(address).then((r) => {
@@ -150,7 +150,6 @@ export const useAddressLoader = () => {
               // remove outermost curly braces
 
               let newSourceContents = [] as SourceContent[]
-              let newSourceStates = [] as SourceState[]
               let detailedOptimizerSettings = {} as any
               let hasDetail = false
 
@@ -171,13 +170,7 @@ export const useAddressLoader = () => {
                       [SOURCE_LAST_SAVED_VALUE]: safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])
                   }
 
-                  const newSourceState = {
-                    [SOURCE_MODEL]: handleCreateModel(safeAccess(sources, [sourceFilename, ETHERSCAN_CONTENT])),
-                    [SOURCE_VIEW_STATE]: undefined
-                  }
-
                   newSourceContents.push(newSource)
-                  newSourceStates.push(newSourceState)
                 }
 
                 if (!isEmpty(safeAccess(sourceCode, [ETHERSCAN_SETTINGS, 'optimizer', 'details']))) {
@@ -190,21 +183,14 @@ export const useAddressLoader = () => {
                     [SOURCE_LAST_SAVED_VALUE]: result[ETHERSCAN_SOURCE]
                 }
 
-                const newSourceState = {
-                  [SOURCE_MODEL]: handleCreateModel(result[ETHERSCAN_SOURCE]),
-                  [SOURCE_VIEW_STATE]: undefined
-                }
-
                 newSourceContents.push(newSource)
-                newSourceStates.push(newSourceState)
               }
 
+              updateAllSourceStates([])
               updateAllSourceContents(newSourceContents)
-              updateAllSourceStates(newSourceStates)
               removeAllMappings()
 
               // parse settings
-
               if (!SOLC_BINARIES.includes(result[ETHERSCAN_COMPILER_VERSION])) {
                 throw new Error("Error importing settings: Compiler version not supported!")
               }
@@ -259,7 +245,7 @@ export const useAddressLoader = () => {
   )
 }
 
-export const useGasSummary = (contract: string) => {
+export const useGasSummary = (contract: string | undefined) => {
   const mappings = useMappings(contract)
 
   return useMemo(() => {
@@ -287,7 +273,7 @@ export const useGasSummary = (contract: string) => {
   }, [mappings]);
 }
 
-export const useFunctionSummary = (contract: string) => {
+export const useFunctionSummary = (contract: string | undefined) => {
   const mappings = useMappings(contract)
   const contractJSON = useContract(contract)
 
@@ -327,88 +313,34 @@ export const useFunctionSummary = (contract: string) => {
   }, [mappings, contractJSON]);
 }
 
-// export function useSourceManager() {
+interface ExampleContent {
+  sourceContent: SourceContent[]
+  compileSettings: CompilerSettings
+  symexecSettings: SymexecSettings
+}
 
-//   const [sourceState, { updateAllSources: updateAllSourceStates, updateSource: updateSourceState, removeSource: removeSourceState }] = useSourceStateManager()
-//   const [sourceContent, { updateAllSources: updateAllSourceContents, updateSource: updateSourceContent, removeSource: removeSourceContent }] = useSourceContentManager()
+export const useExampleLoader = () => {
+  const [, { updateAllSourceContents }] = useSourceContentManager()
+  const [, { updateAllSourceStates }] = useSourceStateManager()
+  const [, updateCompilerSettings] = useCompilerSettingsManager()
+  const [, updateSymexecSettings] = useSymexecSettingsManager()
+  const removeAllMappings = useRemoveAllMappings()
+  const [, updateSolidityTabOpen ] = useSolidityTabOpenManager()
 
-//   const _updateAllSources = useCallback(
-//     (newSources: Source[]) => {
-//       if (newSources) {
-//         const newSourceContents = newSources.map((s) => {
-//           return {
-//             [SOURCE_FILENAME]: s[SOURCE_FILENAME],
-//             [SOURCE_LAST_SAVED_VALUE]: s[SOURCE_LAST_SAVED_VALUE]
-//           }
-//         })
+  return useCallback(
+    ({sourceContent, compileSettings, symexecSettings}: ExampleContent) => {
+      
+      updateSolidityTabOpen(0)
 
-//         const newSourceStates = newSources.map((s) => {
-//           return {
-//             [SOURCE_MODEL]: s[SOURCE_MODEL],
-//             [SOURCE_VIEW_STATE]: s[SOURCE_VIEW_STATE]
-//           }
-//         })
+      updateAllSourceStates([])
+      updateAllSourceContents(sourceContent)
+      removeAllMappings()
 
-//         updateAllSourceStates(newSourceStates)
-//         updateAllSourceContents(newSourceContents)
-//       }
-//     },
-//     [updateAllSourceStates, updateAllSourceContents]
-//   )
+      // parse settings
+      updateCompilerSettings(compileSettings)
 
-//   const _updateSource = useCallback(
-//     (index, source) => {
-//       if (index != null && source) {
-//         const newSourceContent = {
-//           [SOURCE_FILENAME]: source[SOURCE_FILENAME],
-//           [SOURCE_LAST_SAVED_VALUE]: source[SOURCE_LAST_SAVED_VALUE]
-//         }
-
-//         const newSourceState = {
-//           [SOURCE_MODEL]: source[SOURCE_MODEL],
-//           [SOURCE_VIEW_STATE]: source[SOURCE_VIEW_STATE]
-//         }
-
-//         updateSourceState(index, newSourceState)
-//         updateSourceContent(index, newSourceContent)
-//       }
-//     },
-//     [updateSourceState, updateSourceContent]
-//   )
-
-//   const _removeSource = useCallback(
-//     (index) => {
-//       if (index != null) {
-//         removeSourceState(index)
-//         removeSourceContent(index)
-//       }
-//     },
-//     [removeSourceState, removeSourceContent]
-//   )
-
-//   const sources = sourceContent.map((s, index) => {
-//     let currentSourceState
-
-//     if (index >= sourceState.length) {
-//       currentSourceState = {
-//         [SOURCE_MODEL]: undefined,
-//         [SOURCE_VIEW_STATE]: undefined
-//       }
-//     } else {
-//       currentSourceState = sourceState[index]
-//     }
-
-//     return {
-//       ...s,
-//       ...currentSourceState
-//     } as Source
-//   })
-
-//   return [
-//     sources, {updateAllSources: _updateAllSources, updateSource: _updateSource, removeSource: _removeSource}, 
-//   ] as [Source[], {
-//     updateAllSources: ((sourceStates: Source[]) => void), 
-//     updateSource: ((index: number, sourceState: Source) => void), 
-//     removeSource: ((index: number) => void)
-//   }]
-// }
+      updateSymexecSettings(symexecSettings)
+    },
+    [updateAllSourceContents, updateAllSourceStates, updateCompilerSettings]
+  )
+}

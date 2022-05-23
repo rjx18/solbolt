@@ -111,7 +111,7 @@ function AssemblyPane(props: AssemblyPaneProps) {
     
     const isExecuting = symexecTask != null
 
-    const [sourceContents, ] = useSourceContentManager()
+    // const [sourceContents, ] = useSourceContentManager()
 
     const [solidityTab, updateSolidityTabOpen] = useSolidityTabOpenManager()
 
@@ -160,19 +160,23 @@ function AssemblyPane(props: AssemblyPaneProps) {
                             </Grid>
                             <Grid item>
                                 <Tooltip title="Symbolic execution options">
-                                    <SquareIconButton onClick={handleOpenSymexecSettings}>
-                                        <SettingsIcon htmlColor={grey[600]} />
-                                    </SquareIconButton>
+                                    <Box>
+                                        <SquareIconButton onClick={handleOpenSymexecSettings}>
+                                            <SettingsIcon htmlColor={grey[600]} />
+                                        </SquareIconButton>
+                                    </Box>
                                 </Tooltip>
                             </Grid>
                             <Grid item>
-                                <Tooltip title={"Symbolically execute " + contractName}>
-                                    <SquareIconButton disabled={isExecuting} onClick={handleSymExec} >
-                                        {!isExecuting ? <DirectionsRunIcon htmlColor={red[500]}/> :
-                                        <Box display="flex" alignItems="center" justifyContent="center">
-                                            <CircularProgress size={15} style={{color: red[500]}} />
-                                        </Box>}
-                                    </SquareIconButton>
+                                <Tooltip title={contractName == null ? "Compile your contract first!" : "Symbolically execute " + contractName}>
+                                    <Box>
+                                        <SquareIconButton disabled={isExecuting || contractName == null} onClick={handleSymExec} >
+                                            {!isExecuting ? <DirectionsRunIcon htmlColor={contractName == null ? grey[300] : red[500]}/> :
+                                            <Box display="flex" alignItems="center" justifyContent="center">
+                                                <CircularProgress size={15} style={{color: red[500]}} />
+                                            </Box>}
+                                        </SquareIconButton>
+                                    </Box>
                                 </Tooltip>
                             </Grid>
                         </Grid>

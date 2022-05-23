@@ -3,6 +3,7 @@ import React, { createContext, useContext, useReducer, useMemo, useCallback, use
 import { safeAccess } from '../utils'
 
 const SETTINGS_TAB_OPEN = 'SETTINGS_TAB_OPEN'
+const EXAMPLE_CONTENT_OPEN = 'EXAMPLE_CONTENT_OPEN'
 const SHOW_GAS_METRICS = 'SHOW_GAS_METRICS'
 const FREEZE_HOVER = 'FREEZE_HOVER'
 const ASSEMBLY_TAB_OPEN = 'ASSEMBLY_TAB_OPEN'
@@ -17,7 +18,8 @@ export enum UpdateTypes {
   UPDATE_ASSEMBLY_TAB_OPEN = 'UPDATE_ASSEMBLY_TAB_OPEN',
   UPDATE_SOLIDITY_TAB_OPEN = 'UPDATE_SOLIDITY_TAB_OPEN',
   UPDATE_COMPILER_ERROR = 'UPDATE_COMPILER_ERROR',
-  UPDATE_SYMEXEC_ERROR = 'UPDATE_SYMEXEC_ERROR'
+  UPDATE_SYMEXEC_ERROR = 'UPDATE_SYMEXEC_ERROR',
+  UPDATE_EXAMPLE_CONTENT_OPEN = 'UPDATE_EXAMPLE_CONTENT_OPEN'
 }
 
 export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPEN} | 
@@ -26,7 +28,8 @@ export type ApplicationUpdateAction = {type: UpdateTypes.UPDATE_SETTINGS_TAB_OPE
           {type: UpdateTypes.UPDATE_ASSEMBLY_TAB_OPEN} | 
           {type: UpdateTypes.UPDATE_SOLIDITY_TAB_OPEN} |
           {type: UpdateTypes.UPDATE_COMPILER_ERROR} |
-          {type: UpdateTypes.UPDATE_SYMEXEC_ERROR}
+          {type: UpdateTypes.UPDATE_SYMEXEC_ERROR} |
+          {type: UpdateTypes.UPDATE_EXAMPLE_CONTENT_OPEN}
 
 export interface ApplicationState {
   [SETTINGS_TAB_OPEN]: number;
@@ -36,6 +39,7 @@ export interface ApplicationState {
   [SOLIDITY_TAB_OPEN]: number;
   [COMPILER_ERROR]: string | null;
   [SYMEXEC_ERROR]: string | null;
+  [EXAMPLE_CONTENT_OPEN]: number;
 }
 
 export interface Payload {
@@ -54,6 +58,7 @@ const ApplicationContext = createContext<[ApplicationState | undefined, {
     updateSolidityTabOpen: ((updatedTab: number) => void) | undefined, 
     updateCompilerError: ((error: string) => void) | undefined,
     updateSymexecError: ((error: string) => void) | undefined
+    updateExampleContentOpen: ((updatedTab: number) => void) | undefined,
   }]>([undefined, {
     updateSettingsTabOpen: undefined, 
     toggleShowGasMetrics: undefined,
@@ -61,7 +66,8 @@ const ApplicationContext = createContext<[ApplicationState | undefined, {
     updateAssemblyTabOpen: undefined,
     updateSolidityTabOpen: undefined,
     updateCompilerError: undefined,
-    updateSymexecError: undefined
+    updateSymexecError: undefined,
+    updateExampleContentOpen: undefined
   }]);
 
 export function useApplicationContext() {
@@ -133,6 +139,17 @@ function reducer(state: ApplicationState, { type, payload }: { type: UpdateTypes
       }
     }
 
+    case UpdateTypes.UPDATE_EXAMPLE_CONTENT_OPEN : {
+      if (!payload) {
+        throw Error(`No example content included in payload!`)
+      }
+      const { updatedTab } = payload
+      return {
+        ...state,
+        [EXAMPLE_CONTENT_OPEN]: updatedTab
+      }
+    }
+
     default: {
       throw Error(`Unexpected action type in ApplicationContext reducer: '${type}'.`)
     }
@@ -147,7 +164,8 @@ export default function Provider({ children }: {children: any}) {
     [ASSEMBLY_TAB_OPEN]: 0,
     [SOLIDITY_TAB_OPEN]: 0,
     [COMPILER_ERROR]: null,
-    [SYMEXEC_ERROR]: null
+    [SYMEXEC_ERROR]: null,
+    [EXAMPLE_CONTENT_OPEN]: -1
   })
 
   const updateSettingsTabOpen = useCallback((updatedTab) => {
@@ -178,9 +196,13 @@ export default function Provider({ children }: {children: any}) {
     dispatch({ type: UpdateTypes.UPDATE_SYMEXEC_ERROR, payload: { error } as Payload })
   }, [])
 
+  const updateExampleContentOpen = useCallback((updatedTab) => {
+    dispatch({ type: UpdateTypes.UPDATE_EXAMPLE_CONTENT_OPEN, payload: { updatedTab } as Payload })
+  }, [])
+
   return (
     <ApplicationContext.Provider
-      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover, updateAssemblyTabOpen, updateSolidityTabOpen, updateCompilerError, updateSymexecError }], [
+      value={useMemo(() => [state, { updateSettingsTabOpen, toggleShowGasMetrics, toggleFreezeHover, updateAssemblyTabOpen, updateSolidityTabOpen, updateCompilerError, updateSymexecError, updateExampleContentOpen }], [
         state,
         updateSettingsTabOpen,
         toggleShowGasMetrics,
@@ -188,7 +210,8 @@ export default function Provider({ children }: {children: any}) {
         updateAssemblyTabOpen,
         updateSolidityTabOpen,
         updateCompilerError,
-        updateSymexecError
+        updateSymexecError,
+        updateExampleContentOpen
       ])}
     >
       {children}
@@ -328,4 +351,23 @@ export function useSymexecErrorManager() {
   return [
     symexecError, _updateSymexecError, 
   ] as [string | null, (error: string | null) => void ]
+}
+
+export function useExampleContentManager() {
+  const [state, { updateExampleContentOpen }] = useApplicationContext()
+
+  const exampleContentOpen = safeAccess(state, [EXAMPLE_CONTENT_OPEN]) as number
+
+  const _updateSettingsTabOpen = useCallback(
+    exampleContent => {
+      if (exampleContent != null && updateExampleContentOpen) {
+        updateExampleContentOpen(exampleContent)
+      }
+    },
+    [updateExampleContentOpen]
+  )
+
+  return [
+    exampleContentOpen, _updateSettingsTabOpen, 
+  ] as [number, (exampleContent: number) => void ]
 }

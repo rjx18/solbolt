@@ -6,7 +6,7 @@ import Grid from '@mui/material/Grid'
 import Tooltip from '@mui/material/Tooltip';
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
-import { grey } from '@mui/material/colors';
+import { green, grey, orange, red, yellow } from '@mui/material/colors';
 import zIndex from '@mui/material/styles/zIndex'
 import { useHighlightedClass } from '../../contexts/Decorations'
 import { useMappedContractNames, useMappings, useMappingsByIndex } from '../../contexts/Mappings'
@@ -57,8 +57,6 @@ function Inspector() {
   const functionSummary = useFunctionSummary(contractName)
 
   const showInspector = mappings.hasSymExec
-
-  console.log(showInspector ? "Show inspector" : "No show inspector")
 
   let parsedGasSummary = Object.keys(GAS_MAP_LABELS).slice(1).map((key) => {
     if (gasSummary == null) {
@@ -117,7 +115,7 @@ function Inspector() {
   const generateGasSummary = () => {
     return <Box p={2}>
       <Box>
-        <Typography variant="button" component="h6" sx={{fontSize: "10.5pt", color: grey[600]}}>TOTAL GAS USED</Typography>
+        <Typography variant="button" component="h6" sx={{fontSize: "10.5pt", color: grey[600]}}>TOTAL GAS USED PER TX</Typography>
         <Typography variant="h5" component="h5">{prettifyGas(meanMinTotalGas)} {meanMinTotalGas !== meanMaxTotalGas && ` - ${prettifyGas(meanMaxTotalGas)}`}</Typography>
       </Box>
 
@@ -169,15 +167,36 @@ function Inspector() {
     </Grid>
   }
 
+  const getCoverageColor = () => {
+    if (!mappings.covPercentage) {
+      return '#fff'
+    }
+    if (mappings.covPercentage > 85) {
+      return green[600]
+    }
+    if (mappings.covPercentage > 60) {
+      return yellow[800]
+    }
+    if (mappings.covPercentage > 40) {
+      return orange[800]
+    }
+    return red[800]
+  }
+
   return (
     <Box>
-      <Typography variant="button" sx={{fontSize: "12pt"}}>Inspector</Typography>
+      <Typography variant="button" sx={{fontSize: "12pt"}}>Gas Inspector</Typography>
       {showInspector ? 
         <Box py={3}>
           <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Gas Heatmap</Typography>
           <Box pt={1}>
             {(mappings.hasSymExec) && generateHeatMap()}
           </Box>
+
+          {mappings.covPercentage && <Box pt={5}>
+            <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Coverage</Typography>
+            <Typography variant="h5" sx={{color: getCoverageColor()}}>{mappings.covPercentage.toFixed(2)}%</Typography>
+          </Box>}
 
           <Box pt={5}>
             <Typography variant="button" sx={{fontSize: "10.5pt", color: grey[600]}}>Gas Histogram</Typography>

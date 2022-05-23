@@ -1,4 +1,4 @@
-import { CompilerSettings, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_INLINER, COMPILER_VERSION, COMPILER_VIAIR, ContractJSON, ContractMappings, EVMMap, EVMSource, SourceContent, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SymexecSettings, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_ONCHAIN_ADDRESS } from "../types"
+import { CompilerSettings, COMPILER_DETAILS, COMPILER_DETAILS_ENABLED, COMPILER_INLINER, COMPILER_VERSION, COMPILER_VIAIR, ContractJSON, ContractMappings, EVMMap, EVMSource, LoopGasEstimate, SourceContent, SOURCE_FILENAME, SOURCE_LAST_SAVED_VALUE, SymexecSettings, SYMEXEC_ENABLE_ONCHAIN, SYMEXEC_ONCHAIN_ADDRESS } from "../types"
 import axios from 'axios'
 import { BACKEND_URL, ETHERSCAN_API_ENDPOINT, ETHERSCAN_API_KEY, OUTPUT_FILE_NAME } from "../constants"
 import { keccak256 } from 'js-sha3'
@@ -323,6 +323,16 @@ export const addSymexecMetrics = (mappings: {[key: string]: EVMMap}, gasMap: any
   _addLoopGasMetrics(mappings, gasMap.loop_gas)
 
   _addFunctionGasMetrics(mappings, gasMap.function_gas, compiledAST)
+
+  _addDetectedIssues(mappings, gasMap.detected_issues)
+}
+
+const _addDetectedIssues = (mappings: {[key: string]: EVMMap}, detectedIssues: any) => {
+  for (const key of Object.keys(detectedIssues)) {
+    if (key in mappings) {
+      mappings[key].detectedIssues = detectedIssues[key]
+    }
+  }
 }
 
 const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) => {
@@ -338,12 +348,10 @@ const _addGasMetrics = (mappings: {[key: string]: EVMMap}, gasMapSection: any) =
 
 const _addLoopGasMetrics = (mappings: {[key: string]: EVMMap}, loopGas: any) => {
   for (const key in loopGas) {
-    console.log('updating loop gas for: ' + key)
     if (key in mappings) {
-      console.log('key is in mappings: ' + key)
       mappings[key].loopGas = {
         ...loopGas[key]
-      } as {[pc: number]: number}
+      } as {[pc: number]: LoopGasEstimate}
     }
   }
 }

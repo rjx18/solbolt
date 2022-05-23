@@ -9,6 +9,7 @@ export interface FragmentMap {
 
 export interface GasMapItem {
   numTx: number;
+  numInvocations: number;
   class: string;
   maxOpcodeGas: number;
   minOpcodeGas: number;
@@ -25,15 +26,21 @@ export interface HighlightedClass {
   triggeredFrom: HighlightedSource
 }
 
+export interface LoopGasEstimate {
+  gas: number;
+  isHidden: boolean;
+}
+
 export interface EVMMap {
   sourceMap: FragmentMap
   compiledMaps: FragmentMap[]
   gasMap?: GasMapItem
   loopGas?: {
-    [pc: number]: number
+    [pc: number]: LoopGasEstimate
   }
   functionGas?: number
   functionSelector?: string
+  detectedIssues?: string[]
 }
 
 export interface EVMJSON {
@@ -54,6 +61,7 @@ export interface ContractMappings {
   mappings: {
     [key: string]: EVMMap;
   }
+  covPercentage?: number;
   filteredLines: string;
   hasSymExec: boolean;
 }

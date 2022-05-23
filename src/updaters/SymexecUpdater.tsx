@@ -24,7 +24,7 @@ function SymexecUpdaterForContract({contract}: SymexecUpdaterForContractInterfac
   const mappings = useMappings(contract)
 
   useEffect(() => {
-    if (symexecTask != null && updateSymexecTask) {
+    if (symexecTask != null && mappings != null && updateSymexecTask) {
       let stale = false
       const interval = setInterval(() => {
         symExecSourceRemoteStatus(symexecTask.taskId).then((r) => {
@@ -39,7 +39,6 @@ function SymexecUpdaterForContract({contract}: SymexecUpdaterForContractInterfac
               setCurrentPollInterval(SYMEXEC_POLL_INTERVAL)
 
               const symexecResponse = r.data.task_result
-              console.log(symexecResponse)
               if (!symexecResponse.success) {
                 updateSymexecError(symexecResponse.result)
                 updateSymexecTask(null)
@@ -47,8 +46,8 @@ function SymexecUpdaterForContract({contract}: SymexecUpdaterForContractInterfac
                 const newMappings = {...mappings.mappings}
 
                 addSymexecMetrics(newMappings, symexecResponse.result, compiledAST)
-
-                updateAllMappings(contract, newMappings, mappings.filteredLines, true)
+                
+                updateAllMappings(contract, newMappings, mappings.filteredLines, true, symexecResponse.result.cov_percentage)
 
                 updateSymexecError(null)
                 updateSymexecTask(null)
@@ -65,7 +64,7 @@ function SymexecUpdaterForContract({contract}: SymexecUpdaterForContractInterfac
         clearInterval(interval); // This represents the unmount function, in which you need to clear your interval to prevent memory leaks.
       }
     }
-  }, [symexecTask, updateSymexecTask, updateAllMappings, addSymexecMetrics, currentPollInterval])
+  }, [symexecTask, mappings, compiledAST, updateSymexecTask, updateAllMappings, addSymexecMetrics, currentPollInterval])
 
   return null
 }
