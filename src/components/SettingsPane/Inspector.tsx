@@ -45,7 +45,6 @@ const GAS_HISTOGRAM_COLORS = {
 
 function Inspector() {
   const contractNames = useMappedContractNames()
-  // const contractNames = ["ERC20", "IERC721", "EventFactory"]
 
   const [assemblyTab, ] = useAssemblyTabOpenManager()
 

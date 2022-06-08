@@ -25,11 +25,8 @@ function CompilationUpdater() {
     if (compilerTask != null && updateCompilerTask) {
       let stale = false
       const interval = setInterval(() => {
-        console.log(compilerTask)
         compileSourceRemoteStatus(compilerTask.taskId).then((r) => {
           if (!stale) {
-            console.log("RESULT!!")
-            console.log(r.data)
             if (r.status === 404) {
               updateCompilerTask(null)
             } else if (r.data.task_status === "FAILURE") {
@@ -40,7 +37,6 @@ function CompilationUpdater() {
 
               const compilerResponse = r.data.task_result
               if (!compilerResponse.success) {
-                console.log("Error occured!")
                 updateCompilerError(compilerResponse.result)
                 updateCompilerTask(null)
               } else {
@@ -55,8 +51,6 @@ function CompilationUpdater() {
                 for (const contractName in parsedMappings) {
                   const {mappings, filteredLines, hasSymExec} = parsedMappings[contractName]
                   updateAllMappings(contractName, mappings, filteredLines, hasSymExec)
-                  console.log('updated mappings for ' + contractName)
-                  console.log(parsedMappings[contractName])
                 }
 
                 removeHighlightedClass()

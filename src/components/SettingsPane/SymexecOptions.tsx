@@ -78,7 +78,6 @@ function SymexecOptions() {
   const [symexecContract, ] = useSymexecContractManager()
   const [hasTask, setHasTask] = useState(false)
   const [taskStartTime, setTaskStartTime] = useState(0)
-  // const [taskDuration, setTaskDuration] = useState(0)
   const [timerElapsed, setTimerElapsed] = useState(0)
 
   useEffect(() => {
@@ -87,9 +86,6 @@ function SymexecOptions() {
       setTaskStartTime(symexecTask.taskStartTime)
     }
 
-    // if (taskStartTime !== 0 && symexecTask == null) {
-    //   setTaskDuration((Date.now() - taskStartTime) / 1000)
-    // }
   }, [symexecTask])
 
   useEffect(() => {

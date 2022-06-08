@@ -82,7 +82,6 @@ function CompilerOptions() {
   const [compilerError, ] = useCompilerErrorManager()
   const [hasTask, setHasTask] = useState(false)
   const [taskStartTime, setTaskStartTime] = useState(0)
-  // const [taskDuration, setTaskDuration] = useState(0)
   const [timerElapsed, setTimerElapsed] = useState(0)
 
   useEffect(() => {
@@ -91,9 +90,6 @@ function CompilerOptions() {
       setTaskStartTime(compilerTask.taskStartTime)
     }
 
-    // if (taskStartTime !== 0 && compilerTask == null) {
-    //   setTaskDuration((Date.now() - taskStartTime) / 1000)
-    // }
   }, [compilerTask])
   
   useEffect(() => {

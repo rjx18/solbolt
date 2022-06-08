@@ -6,17 +6,11 @@ import { BrowserRouter as Router, Route, Navigate, Routes } from "react-router-d
 import CompilerPage from './pages/CompilerPage';
 
 const RootBox = styled(Box)(({ theme }) => ({
-  // [theme.breakpoints.up('sm')]: {
-  //   marginTop: 50
-  // },
-  // [theme.breakpoints.down('sm')]: {
-  //   marginTop: 20
-  // },
   width: '100%',
   height: '100vh',
   margin: 0,
   padding: 0,
-  overflowY: 'hidden' // TODO: figure out where the extra vertical padding comes from
+  overflowY: 'hidden'
 }));
 
 

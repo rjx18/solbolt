@@ -68,7 +68,6 @@ const ContentPane = ({title, content, handleBack}: ContentPaneProps) => {
 }
 
 function ExamplesPane() {
-  // const [exampleLoaded, setExampleLoaded] = useState(-1)
 
   const [exampleContentOpen, updateExampleContentOpen] = useExampleContentManager()
 

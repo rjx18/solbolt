@@ -155,7 +155,3 @@ export interface TaskStatus {
   taskId: string
   taskStartTime: number
 }
-
-// export interface ContractData {
-//   json: ContractJson
-// }

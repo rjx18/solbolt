@@ -51,7 +51,6 @@ const Tab = styled((props: StyledTabProps) => <MuiTab {...props} />)(
         minWidth: 0,
       },
       fontWeight: 400,
-    //   marginRight: theme.spacing(1),
       color: 'rgba(0, 0, 0, 0.85)',
       fontFamily: [
         '-apple-system',
@@ -149,7 +148,6 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
         {
             let newSourceStates = [...sourceStates]
             let didChange = false
-            // let currentTabSource = undefined
 
             // add states for sources that are not initialised yet
             for (let i = 0; i < sourceContents.length; i++) {
@@ -164,14 +162,10 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
                         [SOURCE_VIEW_STATE]: undefined
                     }
 
-                    // if (i === solidityTab) {
-                    //     currentTabSource = newModel
-                    // }
                 }
             }
 
             if (didChange) {
-                console.log("updated source states!")
                 updateAllSourceStates(newSourceStates)
             }
         }
@@ -187,7 +181,6 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
     }
 
     const handleSourceMouseMove = (key: string, source: number) => {
-        console.log(key)
         if (source === solidityTab) {
             updateHighlightedClass(key, HighlightedSource.SOURCE)
         }
@@ -296,7 +289,6 @@ const SolidityPane = forwardRef((props: SolidityPaneProps, ref: any) => {
             setIsLoadingFromAddress(true)
   
             addressLoad(address).catch((r: Error) => {
-                console.log(r)
                 setError(r.message)
             }).finally(() => {
                 setIsLoadingFromAddress(false)

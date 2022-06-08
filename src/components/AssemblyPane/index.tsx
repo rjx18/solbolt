@@ -55,7 +55,6 @@ const Tab = styled((props: StyledTabProps) => <MuiTab {...props} />)(
         minWidth: 0,
       },
       fontWeight: 400,
-    //   marginRight: theme.spacing(1),
       color: 'rgba(0, 0, 0, 0.85)',
       fontFamily: [
         '-apple-system',
@@ -91,7 +90,6 @@ function AssemblyPane(props: AssemblyPaneProps) {
     const { setError, sourceRef } = props
 
     const contractNames = useMappedContractNames()
-    // const contractNames = ["ERC20", "IERC721", "EventFactory"]
 
     const [assemblyTab, updateAssemblyTabOpen] = useAssemblyTabOpenManager()
 
@@ -110,8 +108,6 @@ function AssemblyPane(props: AssemblyPaneProps) {
     const [symexecTask, ] = useSymexecTaskManager()
     
     const isExecuting = symexecTask != null
-
-    // const [sourceContents, ] = useSourceContentManager()
 
     const [solidityTab, updateSolidityTabOpen] = useSolidityTabOpenManager()
 

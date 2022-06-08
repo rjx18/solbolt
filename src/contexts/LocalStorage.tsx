@@ -171,8 +171,6 @@ function reducer(state: LocalStorageState, { type, payload }: { type: UpdateType
 
       newSources[index] = source
 
-      console.log("Updated source!")
-
       return {
         ...state,
         [SOURCES]: [

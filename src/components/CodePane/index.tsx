@@ -28,7 +28,6 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
   useImperativeHandle(ref, () => ({
     getValue() {
       if (editorRef.current) {
-        console.log(editorRef.current.getValue())
         return editorRef.current.getValue()
       }
       return ''
@@ -65,9 +64,6 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
 
     renderDecorations()
     generateMouseHandlers()
-    // var bindFreeze = editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_Q, function() {
-    //   toggleFreezeHover()
-    // });
   }
 
   const isClassAlreadyHighlighted = (highlightedClass: HighlightedClass, currentClass: string) => {
@@ -119,21 +115,13 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
   }, [mappings, highlightedClass, freezeHover, solidityTab]);
   
   useEffect(() => {
-    console.log("Updated model!")
     if (model != null) {
-      console.log(model)
       editorRef.current.setModel(model);
       if (viewState != null) {
         editorRef.current.restoreViewState(viewState);
       }
     }
   }, [model])
-  
-  // useEffect(() => {
-  //   if (editorRef.current) {
-  //     editorRef.current.layout()
-  //   }
-  // }, [editorRef.current, model, mappings])
   
 
   const generateSourceDecorations = (mappingItem: EVMMap, currClassCount: number, isHighlighted: boolean) => {
@@ -233,8 +221,6 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
       colorGasClass = `frag-color-${currClassCount % NUM_FRAGMENT_CLASSES}`
     }
 
-    // const colorClass = isHighlighted ? 'frag-highlighted' : colorGasClass
-
     const generatedDeltaDecorations = [] as any[]
 
     for (const compiledFragment of mappingItem.compiledMaps) {
@@ -267,7 +253,6 @@ const CodePane = forwardRef((props: CodePaneProps, ref: any) => {
       const deltaDecorations = [] as any[]
 
       const mappingKeysSorted = sortMappingsByLength(mappings) // sort by length descending, so we can mark the largest regions first
-      // mappingKeysSorted.reverse()
 
       let currClassCount = 0
 

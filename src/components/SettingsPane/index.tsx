@@ -122,7 +122,6 @@ function SettingsPane() {
       <Box height="100%">
         <Tabs
           orientation="vertical"
-          // variant="scrollable"
           value={settingsTabOpen}
           onChange={handleChange}
           aria-label="Solbolt tab menu"
@@ -136,10 +135,6 @@ function SettingsPane() {
             '.MuiTabs-flexContainerVertical' : {
               height: "100%"
             },
-            // '&:last-child': {
-            //   position: 'absolute',
-            //   bottom: '0'
-            // }
           }}
         >
           <Tab label="Compiler Options" icon={<CodeIcon />} {...a11yProps(0)} style={{fontSize: "8pt", width: 0, fontWeight: 700}} />

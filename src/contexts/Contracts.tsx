@@ -176,17 +176,11 @@ export function useUpdateAllContracts() {
 
   return useCallback(
       (contracts: {[fileName: string]: {[contractName: string]: ContractJSON}}, ast: {[name: string]: any}) => {
-        console.log("updating all contracts")
-        console.log(contracts)
-        console.log(ast)
-        console.log(updateAllContracts)
-
         if (
           updateAllContracts &&
           contracts &&
           ast
         ) {
-          console.log("updated all contracts")
           updateAllContracts(contracts, ast)
         }
       },
@@ -240,7 +234,6 @@ export function useAST() {
   return safeAccess(state, [AST])
 }
 
-// recreates the compiled JSON object
 export function useCompiledJSON() {
   const [state] = useContractsContext();
 

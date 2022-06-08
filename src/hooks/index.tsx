@@ -12,11 +12,6 @@ import { useSourceStateManager } from '../contexts/Sources';
 
 export const useRemoteCompiler = () => {
 
-  // const updateAllMappings = useUpdateAllMappings()
-  // const updateAllContracts = useUpdateAllContracts()
-  // const removeHighlightedClass = useRemoveHiglightedClass()
-  // const removeAllMappings = useRemoveAllMappings()
-
   const [, updateCompilerTask] = useCompilerTaskManager()
   const [, updateCompiledSourceHash] = useCompiledSourceHashManager()
   const [, updateCompilerError] = useCompilerErrorManager()
@@ -133,9 +128,6 @@ export const useAddressLoader = () => {
       if (address) {
         return etherscanLoader(address).then((r) => {
           if (r.status === 200) {
-            console.log("Loaded address from etherscan")
-            console.log(r.data)
-
             const response = r.data
 
             updateSolidityTabOpen(0)
@@ -229,8 +221,6 @@ export const useAddressLoader = () => {
             }
           }
         }).catch((r) => {
-          console.log(r)
-
           if (r.response != null) {
             const errorMessage = r.response.data.status.split("\n")[0]
             throw new Error(errorMessage)
@@ -284,13 +274,8 @@ export const useFunctionSummary = (contract: string | undefined) => {
       for (const key in mappings.mappings) {
         const functionGas = mappings.mappings[key].functionGas
 
-        console.log("FN Mapping " + key)
-
         if (functionGas != null) {
-          console.log("FOUND FN!")
           const functionSelector = mappings.mappings[key].functionSelector
-
-          console.log(functionSelector)
 
           const functionName = Object.keys(contractJSON.evm.methodIdentifiers).find((fn) => {
             return contractJSON.evm.methodIdentifiers[fn] === functionSelector

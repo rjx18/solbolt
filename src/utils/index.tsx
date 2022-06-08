@@ -74,7 +74,6 @@ export const isChecksumAddress = (address: string) => {
   return true;
 };
 
-// const EVM_REGEX = /\s+\/\*\s+\"(?<Filename>[\w|\#|\.]+)\":(?<StartOffset>\d+):(?<EndOffset>\d+)\s+(?<Identifier>[\w|{]+)?./
 
 const BEGIN = "begin"
 const END = "end"
@@ -127,11 +126,8 @@ export const parseLegacyEVMMappings = (sources: SourceContent[], compiledJSON: a
   // find a mapping of solidity tab index to ast index
   // ast id: validkeys, solidity id
   // then, if no source present, find within the set of valid keys of all mappings to get a key with the source id
-  // 
 
   const astKeyMap = getASTKeys(safeAccess(compiledJSON, [JSON_SOURCES]), sourceNameToIndex)
-
-  console.log(astKeyMap)
 
   for (const sourceContent of sources) {
     const outputName = sourceContent[SOURCE_FILENAME]
@@ -142,14 +138,8 @@ export const parseLegacyEVMMappings = (sources: SourceContent[], compiledJSON: a
       const compiledEVM = safeAccess(compiledJSON, [JSON_CONTRACTS, outputName, contractName, JSON_EVM, JSON_LEGACY])
   
       if (compiledEVM !== {} && compiledEVM[CODE] != null && compiledEVM[DATA] != null) {
-        // const validKeys = findValidKeys(compiledAST)
   
         const filteredLinesArray = []
-  
-        // let currMap = undefined as undefined | {
-        //   sourceMap: FragmentMap,
-        //   compiledMaps: FragmentMap[]
-        // }
   
         const mappings = {} as {[key: string]: EVMMap}
   
@@ -157,13 +147,9 @@ export const parseLegacyEVMMappings = (sources: SourceContent[], compiledJSON: a
   
         const hasCreationCode = parseLegacyEVMSection(sources, compiledEVM[CODE], filteredLinesArray, mappings, astKeyMap)
   
-        console.log(`Num instructions in constructor: ${compiledEVM[CODE].length}`)
-  
         filteredLinesArray.push("SUBROUTINES:")
   
         const hasRuntimeCode = parseLegacyEVMSection(sources, compiledEVM[DATA]["0"][CODE], filteredLinesArray, mappings, astKeyMap)
-  
-        console.log(`Num instructions in sub: ${compiledEVM[DATA]["0"][CODE].length}`)
   
         const filteredLines = filteredLinesArray.join('\n')
   
@@ -206,8 +192,6 @@ const parseLegacyEVMSection = (sources: SourceContent[], code: LegacyEVMNode[], 
   let hasCode = false
   
   for (const node of code) {
-
-    // const node = code[i]
 
     if (node[NAME] === TAG) {
       num_tags++
@@ -364,13 +348,7 @@ const _addFunctionGasMetrics = (mappings: {[key: string]: EVMMap}, fnGas: any, a
     const truncSelector = splitSelector[0].substring(2)
     const functionName = splitSelector[1]
 
-    console.log("Found key for fn")
-    console.log(truncSelector)
-    console.log(functionName)
-
     const key = findFunctionDefinitition(truncSelector, functionName, mappingKeys, ast)
-
-    console.log(key)
 
     if (key != null) {
       mappings[key].functionGas = fnGas[selector]
@@ -647,15 +625,6 @@ export const symExecSourceRemote = (contract: string, sources: SourceContent[], 
     content: s[SOURCE_LAST_SAVED_VALUE]
   }))
 
-  console.log({
-    files: requestFiles,
-    json: JSON.stringify(compiledJSON),
-    settings: {
-      ...settings
-    },
-    contract: contract
-  })
-  
   return axios.post(`${BACKEND_URL}/sym/`, {
     files: requestFiles,
     json: JSON.stringify(compiledJSON),
